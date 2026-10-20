@@ -183,11 +183,26 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         downloadFallback.setVisibility(telegram.completedPath(video).isEmpty() ? View.VISIBLE : View.GONE); controls.setVisibility(View.VISIBLE); handler.removeCallbacks(hide);
     }
     private void downloadAndClose() {
+        if (!downloadFallback.isEnabled()) return;
         if (player != null) player.pause();
         if (bridge != null) { bridge.close(); bridge = null; }
         downloadFallback.setEnabled(false);
         telegram.io.execute(() -> {
-            try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the file after download completes.", Toast.LENGTH_LONG).show(); finish(); }); }
+            try {
+                telegram.check(session);
+                SavedStore store = SavedStore.open(this, library.accountId);
+                try {
+                    store.entries().putDownload(new SavedStore.Download(SavedStore.id(video), "Preparing"));
+                    try {
+                        telegram.download(video); telegram.check(session);
+                        store.entries().putDownload(new SavedStore.Download(SavedStore.id(video), telegram.completedPath(video).isEmpty() ? "Downloading" : "Downloaded"));
+                    } catch (Exception error) {
+                        store.entries().putDownload(new SavedStore.Download(SavedStore.id(video), "Retry download"));
+                        throw error;
+                    }
+                } finally { store.close(); }
+                runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the file after download completes.", Toast.LENGTH_LONG).show(); finish(); });
+            }
             catch (Exception e) { runOnUiThread(() -> { message.setText(e.getMessage()); downloadFallback.setEnabled(true); }); }
         });
     }
