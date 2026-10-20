@@ -87,8 +87,13 @@ final class Telegram {
             client = JsonClient.td_create_client_id();
             Thread receiver = new Thread(this::receive, "tdlib-receiver"); receiver.setDaemon(true); receiver.start();
         }
+        int activeClient = client;
         JSONObject state = request(Json.obj("@type", "getAuthorizationState"));
-        authQueue.execute(() -> { try { if (loginStartup.acceptsSnapshot() || lastAuth.isEmpty()) authorization(state); } catch (Exception e) { authorizationFailed(state, e); } });
+        authQueue.execute(() -> {
+            if (client != activeClient) return;
+            try { if (loginStartup.acceptsSnapshot() || lastAuth.isEmpty()) authorization(state); }
+            catch (Exception e) { authorizationFailed(state, e); }
+        });
     }
     JSONObject request(JSONObject request) throws Exception {
         if (client == 0) throw new IllegalStateException("Connect to Telegram first.");
@@ -118,7 +123,12 @@ final class Telegram {
                     else result.complete(value);
                 } else if (Json.type(value).equals("updateAuthorizationState")) {
                     JSONObject auth = Json.child(value, "authorization_state");
-                    authQueue.execute(() -> { loginStartup.observeUpdate(); try { authorization(auth); } catch (Exception e) { authorizationFailed(auth, e); } });
+                    int activeClient = client;
+                    authQueue.execute(() -> {
+                        if (client != activeClient) return;
+                        loginStartup.observeUpdate();
+                        try { authorization(auth); } catch (Exception e) { authorizationFailed(auth, e); }
+                    });
                 } else if (Json.type(value).equals("updateFile")) {
                     JSONObject file = Json.child(value, "file"); files.put(file.optInt("id"), file);
                     if (Json.child(file, "local").optBoolean("is_downloading_completed")) downloads.remove(file.optInt("id"));
