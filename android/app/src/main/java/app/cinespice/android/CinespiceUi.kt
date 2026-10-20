@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 package app.cinespice.android
 
 import android.graphics.Bitmap
@@ -45,7 +45,7 @@ internal val palettes = listOf(
     CinePalette("Sage", Color(0xFFF1F6F2), Color(0xFFDFEAE2), Color(0xFF226347), false)
 )
 internal data class Destination(val id: String, val title: String, val icon: ImageVector)
-internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("search", "Search", Icons.Default.Search), Destination("downloads", "Downloads", CineIcons.Download), Destination("history", "History", CineIcons.History))
+internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("search", "Search", Icons.Default.Search), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("downloads", "Downloads", CineIcons.Download))
 
 @Composable internal fun Cinespice(activity: MainActivity, model: LibraryModel) {
     val palette = palettes.firstOrNull { it.name == model.palette } ?: palettes.first()
@@ -71,17 +71,21 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
         SideEffect { WindowCompat.getInsetsController(activity.window, view).apply { isAppearanceLightStatusBars = !palette.dark; isAppearanceLightNavigationBars = !palette.dark } }
         LaunchedEffect(model.account) { while (true) { delay(1000); model.tick() } }
         fun navigate(destination: String) { keyboard?.hide(); focus.clearFocus(); model.navigate(destination) }
-        BackHandler(model.channelsVisible || model.page != "home") {
+        BackHandler(model.stage == "ready" && (model.channelsVisible || model.page != "home")) {
             if (ime) { keyboard?.hide(); focus.clearFocus() }
             else if (model.channelsVisible) model.closeChannels() else navigate("home")
         }
-        BoxWithConstraints(Modifier.fillMaxSize().background(palette.bg).outsideKeyboard()) {
-            val rail = maxWidth >= 840.dp && model.stage == "ready"
+        Box(Modifier.fillMaxSize().background(palette.bg).outsideKeyboard()) {
             Scaffold(containerColor = palette.bg, contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
-                    Column(Modifier.statusBarsPadding().background(palette.surface)) {
+                    if (model.stage == "ready") Column(Modifier.statusBarsPadding().background(palette.surface)) {
                         Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (model.page == "collection" && model.stage == "ready") IconButton(onClick = { navigate("home") }) { Icon(Icons.Default.ArrowBack, "Back") }
+                            if (model.page == "collection" && model.stage == "ready") {
+                                Text(model.chatTitle, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+                                SortControl(model, compact = true)
+                                IconButton(onClick = { model.collectionSearchVisible = !model.collectionSearchVisible; if (!model.collectionSearchVisible) model.searchCollection("") }) { Icon(Icons.Default.Search, "Search this channel") }
+                            } else {
                             TextButton(onClick = { if (model.stage == "ready") model.refresh() }, enabled = !model.busy) { Text("CINESPICE", letterSpacing = 2.sp, fontWeight = FontWeight.Bold, fontSize = 17.sp) }
                             Spacer(Modifier.weight(1f))
                             if (model.stage == "ready") {
@@ -89,20 +93,24 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                                 IconButton(onClick = { navigate("profile") }) { Icon(CineIcons.PersonOutline, "Profile") }
                             }
                         }
+                        }
                         if (model.busy || model.searching) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp))
                         if (model.status.isNotBlank()) Text(model.status, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall)
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = .3f))
                     }
                 }, bottomBar = {
-                    if (model.stage == "ready" && !rail && !ime) NavigationBar(modifier = Modifier.heightIn(min = if (LocalDensity.current.fontScale > 1.4f) 112.dp else 80.dp), containerColor = palette.surface, tonalElevation = 0.dp) {
-                        destinations.forEach { dest -> NavigationBarItem(selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, null) }, label = { Text(dest.title, maxLines = if (LocalDensity.current.fontScale > 1.4f) 2 else 1, fontSize = 9.sp, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }, modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }) }
+                    if (model.stage == "ready" && model.page != "collection" && !ime) {
+                        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)).padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                            NavigationBar(modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).border(1.dp, scheme.outline.copy(alpha = .3f), RoundedCornerShape(28.dp)).heightIn(min = if (density.fontScale > 1.4f) 112.dp else 80.dp), containerColor = palette.surface, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
+                                destinations.forEach { dest -> NavigationBarItem(selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, null) }, label = { Text(dest.title, maxLines = if (density.fontScale > 1.4f) 2 else 1, fontSize = 9.sp, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }, modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }) }
+                            }
+                        }
                     }
                 }
             ) { padding ->
                 // Scaffold already applies the safe-drawing insets. A second IME
                 // inset here double-counted the keyboard when edge-to-edge was on.
                 Row(Modifier.fillMaxSize().padding(padding)) {
-                    if (rail) NavigationRail(containerColor = palette.surface) { destinations.forEach { dest -> NavigationRailItem(modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }, selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, dest.title) }, label = { Text(dest.title) }) } }
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                         if (model.stage == "ready") LibraryPage(activity, model, Modifier.widthIn(max = 1200.dp).fillMaxSize()) else Authentication(activity, model)
                     }
@@ -110,6 +118,9 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
             }
         }
         if (model.channelsVisible && model.stage == "ready") ChannelPicker(model)
+        if (model.stage == "ready") activity.details?.let { FileDetails(activity, model, it) }
+        LaunchedEffect(model.account) { activity.details = null; activity.downloadSuggestion = null }
+        activity.downloadSuggestion?.let { video -> AlertDialog(onDismissRequest = { activity.downloadSuggestion = null }, title = { Text("Download to play") }, text = { Text("Please download this file before playing it. Its size is unavailable for streaming.") }, confirmButton = { TextButton(onClick = { model.download(video); activity.downloadSuggestion = null }) { Text("Download") } }, dismissButton = { TextButton(onClick = { activity.downloadSuggestion = null }) { Text("Cancel") } }) }
         activity.opening?.let { video -> AlertDialog(onDismissRequest = activity::cancelOpening, title = { Text("Opening video") }, text = { Column { Text(video.name); LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 16.dp)) } }, confirmButton = { TextButton(onClick = activity::cancelOpening) { Text("Cancel") } }) }
     }
 }
@@ -140,13 +151,17 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
     key(model.account, model.page, model.chat, model.savedList) {
         val grid = rememberLazyGridState()
         val videos = when (model.page) {
-            "collection" -> model.sorted((model.videos.filter { it.chatId == model.chat && (model.collectionQuery.isBlank() || it.name.contains(model.collectionQuery, true)) } + model.collectionSearchResults).distinctBy { it.key() })
+            "collection" -> model.sortedChannel((model.videos.filter { it.chatId == model.chat && (model.collectionQuery.isBlank() || it.name.contains(model.collectionQuery, true)) } + model.collectionSearchResults).distinctBy { it.key() }, model.chat)
             "favorites" -> model.sorted(model.videos.filter { SavedStore.id(it) in if (model.savedList == "Favorites") model.favorites else model.watchlist })
             "search" -> if (model.query.isBlank()) emptyList() else model.sorted(model.searchResults)
             "downloads" -> model.sorted(model.videos.filter { model.downloadStates[SavedStore.id(it)] !in listOf(null, "Cancelled") })
             "history" -> model.history
             else -> emptyList()
         }
+        val pageCount = maxOf(1, (videos.size + 29) / 30)
+        val currentPage = model.collectionPageNumber.coerceIn(0, pageCount - 1)
+        val shown = if (model.page == "collection") videos.drop(currentPage * 30).take(30) else videos
+        LaunchedEffect(currentPage, model.collectionQuery, model.channelOrder(model.chat)) { if (model.page == "collection") grid.scrollToItem(0) }
         LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), state = grid, modifier = modifier.testTagCompat("library-grid"), contentPadding = PaddingValues(20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             if (model.page == "home") {
                 item(span = { GridItemSpan(maxLineSpan) }) { Hero(activity, model) }
@@ -157,53 +172,56 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                     }
                 }
                 val selectedChannels = model.channels.filter { it.selected() }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) { Text("Your channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); TextButton(onClick = model::showChannels) { Text("Manage") } }
-                        if (selectedChannels.isEmpty()) EmptyState("Choose your channels", "Select Telegram channels and groups with the Channels button to see them here.")
-                        else {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(selectedChannels, key = { it.id() }) { source -> ChannelTile(model, source) }
-                            }
+                if (selectedChannels.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { EmptyState("Choose your channels", "Select Telegram channels and groups with the Channels button.") }
+                items(selectedChannels, key = { "channel_${it.id()}" }, span = { GridItemSpan(maxLineSpan) }) { source ->
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.fillMaxWidth().clickable { model.browse(source) }, verticalAlignment = Alignment.CenterVertically) {
+                            Text(source.title(), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            IconButton(onClick = { model.browse(source) }) { Icon(CineIcons.ChevronRight, "Open ${source.title()}") }
+                        }
+                        val preview = model.sortedChannel(model.videos.filter { it.chatId == source.id() }, source.id()).take(10)
+                        if (preview.isEmpty()) Text("No files loaded yet. Open this channel to load or retry.", style = MaterialTheme.typography.bodySmall)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(preview, key = { it.key() }) { video -> Box(Modifier.width(160.dp)) { Poster(activity, model, video) } }
                         }
                     }
                 }
             }
             if (model.page != "home") item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(when(model.page) { "favorites" -> "Saved for later"; "search" -> "Find your next watch"; "downloads" -> "Downloads"; "history" -> "Recently watched"; else -> model.chatTitle }, style = MaterialTheme.typography.headlineMedium, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    if (model.page != "collection") Text(when(model.page) { "favorites" -> "Saved for later"; "search" -> "Find your next watch"; "downloads" -> "Downloads"; "history" -> "Recently watched"; else -> model.chatTitle }, style = MaterialTheme.typography.headlineMedium, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     if (model.page == "favorites") SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { listOf("Favorites", "Watchlist").forEachIndexed { index, list -> SegmentedButton(selected = model.savedList == list, onClick = { model.setList(list) }, shape = SegmentedButtonDefaults.itemShape(index, 2)) { Text(list) } } }
                     if (model.page == "search") {
                         OutlinedTextField(model.query, model::search, Modifier.fillMaxWidth().inputArea(), label = { Text("Search videos") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.query.isNotEmpty()) IconButton(onClick = { model.search("") }) { Icon(Icons.Default.Close, "Clear search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.search(model.query) }))
                     }
-                    if (model.page == "collection") OutlinedTextField(model.collectionQuery, model::searchCollection, Modifier.fillMaxWidth().inputArea(), label = { Text("Search this channel") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.collectionQuery.isNotEmpty()) IconButton(onClick = { model.searchCollection("") }) { Icon(Icons.Default.Close, "Clear channel search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.searchCollection(model.collectionQuery) }))
+                    if (model.page == "collection" && model.collectionSearchVisible) OutlinedTextField(model.collectionQuery, model::searchCollection, Modifier.fillMaxWidth().inputArea(), label = { Text("Search this channel") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.collectionQuery.isNotEmpty()) IconButton(onClick = { model.searchCollection("") }) { Icon(Icons.Default.Close, "Clear channel search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.searchCollection(model.collectionQuery) }))
                     if (model.page == "history") Text("Your five most recent watches. Older resume positions stay saved.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     else if (model.page == "downloads") Text("Full downloads only. Keep the app open until they finish; interrupted downloads can be retried.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    if (model.page !in listOf("search", "history") || model.query.isNotBlank()) if (model.page != "history") SortControl(model)
+                    if (model.page !in listOf("search", "history") || model.query.isNotBlank()) if (model.page !in listOf("history", "collection")) SortControl(model)
                 }
             }
             if (videos.isEmpty() && model.page != "home") item(span = { GridItemSpan(maxLineSpan) }) {
-                EmptyState(when (model.page) { "search" -> if (model.query.isBlank()) "Search your selected channels" else if (model.searching) "Searching…" else "No matching videos"; "collection" -> if (model.collectionQuery.isBlank()) "No videos loaded yet" else if (model.collectionSearching) "Searching this channel…" else "No matching videos"; "favorites" -> "A little inspiration for later"; "downloads" -> "Nothing downloaded yet"; "history" -> "Your next film starts here"; else -> "Your cinema starts here" }, when (model.page) { "search" -> "Enter a title or filename. Only channels you select are searched."; "collection" -> if (model.collectionQuery.isBlank()) "Load this channel's videos to start browsing." else "Search is limited to this channel."; "favorites" -> "Use a video's menu to add it to ${model.savedList}."; "downloads" -> "Choose Download first from a video's menu."; "history" -> "Videos you watch will appear here."; else -> "Select Telegram channels using the Channels button." })
+                EmptyState(when (model.page) { "search" -> if (model.query.isBlank()) "Search your selected channels" else if (model.searching) "Searching…" else "No matching videos"; "collection" -> if (model.collectionQuery.isBlank()) "No videos loaded yet" else if (model.collectionSearching) "Searching this channel…" else "No matching videos"; "favorites" -> "A little inspiration for later"; "downloads" -> "Nothing downloaded yet"; "history" -> "Your next film starts here"; else -> "Your cinema starts here" }, when (model.page) { "search" -> "Enter a title or filename. Only channels you select are searched."; "collection" -> if (model.collectionQuery.isBlank()) "Load this channel's videos to start browsing." else "Search is limited to this channel."; "favorites" -> "Long press a file to add it to ${model.savedList}."; "downloads" -> "Choose Download from a video's menu."; "history" -> "Videos you watch will appear here."; else -> "Select Telegram channels using the Channels button." })
             }
-            items(videos, key = { it.key() }) { video -> Poster(activity, model, video) }
+            items(shown, key = { it.key() }) { video -> Poster(activity, model, video) }
             if (model.page == "search" && model.query.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) { OutlinedButton(onClick = model::moreSearch, enabled = !model.searching && model.searchMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.searching) "Searching…" else "More results / Retry") } }
             if (model.page == "collection" && model.collectionQuery.isNotBlank() && model.collectionSearchError.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) { Text(model.collectionSearchError, color = MaterialTheme.colorScheme.error) }
+            if (model.page == "collection") item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { model.collectionPageNumber = currentPage - 1 }, enabled = currentPage > 0) { Icon(Icons.Default.ArrowBack, "Previous page") }
+                    LazyRow(Modifier.weight(1f)) { items(pageCount) { page ->
+                        TextButton(onClick = { model.collectionPageNumber = page }, colors = ButtonDefaults.textButtonColors(contentColor = if (page == currentPage) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)) { Text("${page + 1}", fontWeight = if (page == currentPage) FontWeight.Bold else FontWeight.Normal) }
+                    } }
+                    IconButton(onClick = { model.collectionPageNumber = currentPage + 1 }, enabled = currentPage + 1 < pageCount) { Icon(CineIcons.ChevronRight, "Next page") }
+                }
+            }
+            if (model.page == "collection") item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("${videos.size} loaded files · 30 per page. Sorting applies to loaded files.", style = MaterialTheme.typography.bodySmall)
+            }
             if (model.page == "collection") item(span = { GridItemSpan(maxLineSpan) }) {
                 if (model.collectionQuery.isNotBlank()) OutlinedButton(onClick = model::moreCollectionSearch, enabled = !model.collectionSearching && model.collectionSearchMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.collectionSearching) "Searching…" else if (model.collectionSearchError.isNotBlank()) "Retry channel search" else "More channel results") }
                 else OutlinedButton(onClick = model::older, enabled = !model.busy && model.collectionMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.collectionMore) "Load older videos / Retry" else "All available pages loaded") }
             }
-        }
-    }
-}
-
-@Composable private fun ChannelTile(model: LibraryModel, source: Library.Chat) {
-    val videos = model.videos.filter { it.chatId == source.id() }
-    Card(onClick = { model.browse(source) }, modifier = Modifier.width(230.dp), shape = RoundedCornerShape(14.dp)) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(CineIcons.VideoLibrary, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) { Text(source.title(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold); Text(if (videos.isEmpty()) "Loading videos…" else "${videos.size} cached videos", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
-            Icon(CineIcons.ChevronRight, "Browse ${source.title()}")
         }
     }
 }
@@ -215,11 +233,12 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
         Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Icon(CineIcons.Movie, null, tint = MaterialTheme.colorScheme.primary); Text(title, style = MaterialTheme.typography.titleLarge); Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium) }
     }
 }
-@Composable private fun SortControl(model: LibraryModel) {
+@Composable private fun SortControl(model: LibraryModel, compact: Boolean = false) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedSort = if (model.page == "collection") model.channelOrder(model.chat) else model.sort
     Column {
-        Box { TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 0.dp)) { Icon(CineIcons.Sort, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(VideoSort.LABELS[model.sort]) }; DropdownMenu(expanded, { expanded = false }) { VideoSort.LABELS.forEachIndexed { index, label -> DropdownMenuItem(text = { Text(if (index == model.sort) "✓ $label" else label) }, onClick = { model.order(index); expanded = false }) } } }
-        if (model.sort < 2) Text("Filename years · loaded results only", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+        Box { TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 0.dp)) { Icon(CineIcons.Sort, "Sort channel", Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); if (!compact) Text(VideoSort.LABELS[selectedSort]) }; DropdownMenu(expanded, { expanded = false }) { VideoSort.LABELS.forEachIndexed { index, label -> DropdownMenuItem(text = { Text(if (index == selectedSort) "✓ $label" else label) }, onClick = { model.order(index); expanded = false }) } } }
+        if (!compact && selectedSort < 2) Text("Filename years · loaded results only", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
     }
 }
 @Composable private fun Hero(activity: MainActivity, model: LibraryModel) {
@@ -240,7 +259,7 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                     Text(if (video != null) videoDetails(video) else if (slot in 2..5) "Catalogue not connected" else if (slot == 6) "Complete a search to see a result here." else "Choose your channels to get started.", color = Color.White.copy(alpha = .75f), fontSize = 13.sp)
                     if (video != null) Row(verticalAlignment = Alignment.CenterVertically) {
                         Button(onClick = { activity.open(video) }) { Icon(Icons.Default.PlayArrow, null); Text(if (model.telegram.requireLibrary().position(video.key()) >= 5000) "Resume" else "Play") }
-                        Spacer(Modifier.width(8.dp)); VideoMenu(activity, model, video, Color.White)
+                        Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { activity.details = video }) { Icon(Icons.Default.Info, null); Text("More info", color = Color.White) }
                     }
                 }
             }
@@ -249,14 +268,15 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
     }
 }
 @Composable private fun ContinueCard(activity: MainActivity, model: LibraryModel, video: Video) {
-    Card(onClick = { activity.open(video) }, modifier = Modifier.width(240.dp), shape = RoundedCornerShape(16.dp)) {
-        Box(Modifier.fillMaxWidth().height(112.dp).background(Color(0xFF25252C))) { ArtworkImage(model, video, Modifier.fillMaxSize()); Icon(CineIcons.PlayCircleOutline, null, Modifier.align(Alignment.Center).size(38.dp), tint = Color.White) }
-        Column(Modifier.padding(12.dp)) { Text(video.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp); Text("Resume at ${Ui.time(model.telegram.requireLibrary().position(video.key()))}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+    Column(Modifier.width(240.dp)) {
+        Poster(activity, model, video, wide = true)
+        Text("Resume at ${Ui.time(model.telegram.requireLibrary().position(video.key()))}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
     }
 }
-@Composable private fun Poster(activity: MainActivity, model: LibraryModel, video: Video) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(.69f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).clickable(onClickLabel = "Play ${video.name}") { activity.open(video) }) {
+@Composable private fun Poster(activity: MainActivity, model: LibraryModel, video: Video, wide: Boolean = false) {
+    var options by remember(video.key()) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().combinedClickable(onClick = { activity.details = video }, onLongClick = { options = true }), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(if (wide) 16f / 9f else .69f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).combinedClickable(onClickLabel = "Play ${video.name}", onClick = { activity.open(video) }, onLongClick = { options = true })) {
             ArtworkImage(model, video, Modifier.matchParentSize())
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xBF000000)))))
             Text(video.name.substringBeforeLast('.').replace('.', ' '), Modifier.align(Alignment.BottomStart).padding(12.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
@@ -268,14 +288,19 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
         }
         Row(verticalAlignment = Alignment.Top) {
             Text(video.name, Modifier.weight(1f).padding(top = 8.dp), fontSize = 14.sp, maxLines = 2, lineHeight = 19.sp, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-            VideoMenu(activity, model, video)
+
         }
+        Row {
+            FilledTonalIconButton(onClick = { activity.open(video) }) { Icon(Icons.Default.PlayArrow, "Play ${video.name}") }
+            IconButton(onClick = { activity.details = video }) { Icon(Icons.Default.Info, "Info for ${video.name}") }
+        }
+        if (options) FileActions(activity, model, video) { options = false }
         Text(videoDetails(video), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2)
         model.downloadStates[SavedStore.id(video)]?.let { state -> Text(state, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary) }
     }
 }
 internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(video)?.let { "$it · filename year" }, if (video.duration > 0) Ui.time(video.duration * 1000L) else null, if (video.size > 0) String.format(Locale.ROOT, "%.0f MB", video.size / 1048576.0) else null).joinToString(" · ")
-@Composable private fun ArtworkImage(model: LibraryModel, video: Video, modifier: Modifier) {
+@Composable internal fun ArtworkImage(model: LibraryModel, video: Video, modifier: Modifier) {
     var bitmap by remember(model.account, video.key()) { mutableStateOf<Bitmap?>(model.artwork?.cached(video) ?: runCatching { val bytes = Base64.decode(video.data.optString("mini"), Base64.DEFAULT); BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()) }
     DisposableEffect(model.account, video.key()) {
         var active = true
@@ -285,25 +310,23 @@ internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(v
     if (bitmap != null) Image(bitmap!!.asImageBitmap(), null, modifier, contentScale = ContentScale.Crop)
     else Box(modifier.background(Brush.linearGradient(listOf(Color(0xFF343843), Color(0xFF191A21)))), contentAlignment = Alignment.Center) { Icon(CineIcons.LocalMovies, null, tint = Color.White.copy(alpha = .18f), modifier = Modifier.size(50.dp)) }
 }
-@Composable private fun VideoMenu(activity: MainActivity, model: LibraryModel, video: Video, tint: Color = MaterialTheme.colorScheme.onSurface) {
-    var expanded by remember { mutableStateOf(false) }
+@Composable private fun FileActions(activity: MainActivity, model: LibraryModel, video: Video, dismiss: () -> Unit) {
     val id = SavedStore.id(video)
-    Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert, "Options for ${video.name}", tint = tint) }
-        DropdownMenu(expanded, { expanded = false }) {
-            fun action(run: () -> Unit) { expanded = false; run() }
+    AlertDialog(onDismissRequest = dismiss, title = { Text(video.name, maxLines = 2) }, confirmButton = { TextButton(onClick = dismiss) { Text("Close") } }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            fun action(run: () -> Unit) { dismiss(); run() }
             DropdownMenuItem(text = { Text(if (id in model.favorites) "Remove from Favorites" else "Add to Favorites") }, onClick = { action { model.toggle(video, "Favorites") } })
             DropdownMenuItem(text = { Text(if (id in model.watchlist) "Remove from Watchlist" else "Add to Watchlist") }, onClick = { action { model.toggle(video, "Watchlist") } })
             HorizontalDivider()
             DropdownMenuItem(text = { Text("Play / Resume") }, onClick = { action { activity.open(video) } })
             DropdownMenuItem(text = { Text("Start over") }, onClick = { action { activity.open(video, false) } })
-            DropdownMenuItem(text = { Text("Download first") }, enabled = id !in model.preparing && model.downloadStates[id] != "Downloading", onClick = { action { model.download(video) } })
+            DropdownMenuItem(text = { Text("Download") }, enabled = id !in model.preparing && model.downloadStates[id] != "Downloading", onClick = { action { model.download(video) } })
             DropdownMenuItem(text = { Text("Cancel download") }, enabled = model.downloadStates[id] == "Downloading", onClick = { action { model.cancelDownload(video) } })
             DropdownMenuItem(text = { Text("Export to Files…") }, onClick = { action { activity.export(video) } })
             DropdownMenuItem(text = { Text("Mark watched") }, onClick = { action { model.mark(video) } })
             DropdownMenuItem(text = { Text("Remove history") }, onClick = { action { model.removeHistory(video) } })
         }
-    }
+    })
 }
 
 @Composable private fun ChannelPicker(model: LibraryModel) {
@@ -392,28 +415,113 @@ internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(v
         AlertDialog(onDismissRequest = { notices = false }, title = { Text("Open source notices") }, text = { Text(text, Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), fontSize = 12.sp) }, confirmButton = { TextButton(onClick = { notices = false }) { Text("Close") } })
     }
 }
+private data class DialingCountry(val id: String, val name: String, val dial: String)
 @Composable private fun Authentication(activity: MainActivity, model: LibraryModel) {
     var apiId by rememberSaveable { mutableStateOf("") }
     var hash by remember { mutableStateOf("") }
-    var value by remember(model.stage) { mutableStateOf("") }
-    Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("YOUR CHANNELS. YOUR CINEMA.", fontSize = 11.sp, letterSpacing = 2.sp, color = MaterialTheme.colorScheme.primary)
-        Text("Make time for\na good story.", fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
-        Text("Connect Telegram to browse the channels you choose, then watch with VLC.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (model.stage == "credentials") {
-            Text("Your API credentials stay encrypted on this device.", style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(apiId, { apiId = it }, Modifier.fillMaxWidth().inputArea(), label = { Text("API ID") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            OutlinedTextField(hash, { hash = it }, Modifier.fillMaxWidth().inputArea(), label = { Text("API hash") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-            Button(onClick = { model.work("Connecting…") { model.network { model.telegram.connect(apiId.trim(), hash.trim()) } } }, enabled = !model.busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Connect Telegram") }
-            TextButton(onClick = { activity.link("https://my.telegram.org") }) { Text("Get Telegram API credentials ↗") }
-        } else if (model.stage in setOf("phone", "code", "password", "email", "emailCode")) {
-            val label = when(model.stage) { "phone" -> "Phone number with country code"; "code" -> "Telegram login code"; "password" -> "Two-step verification password"; "email" -> "Email address"; else -> "Email verification code" }
-            OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth().inputArea(), label = { Text(label) }, singleLine = true, visualTransformation = if (model.stage == "password") PasswordVisualTransformation() else VisualTransformation.None, keyboardOptions = KeyboardOptions(keyboardType = when(model.stage) { "phone" -> KeyboardType.Phone; "code", "emailCode" -> KeyboardType.Number; "email" -> KeyboardType.Email; else -> KeyboardType.Text }, imeAction = ImeAction.Done))
-            if (model.stage == "code") Text("Check Telegram on your other devices for the sign-in code.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = { val input = value; model.work("Checking with Telegram…") { model.network { model.telegram.authenticate(input) } } }, enabled = !model.busy && value.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Continue") }
-        } else { LinearProgressIndicator(Modifier.fillMaxWidth()); Text(if (model.stage == "unsupported") model.telegram.error else "Connecting securely to Telegram…") }
-        Text("No backend, subscriptions or analytics. Your session and library stay on your device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    var phone by rememberSaveable { mutableStateOf("") }
+    var entry by remember(model.stage) { mutableStateOf("") }
+    val value = if (model.stage == "phone") phone else entry
+    var countryId by rememberSaveable { mutableStateOf(Locale.getDefault().country.ifEmpty { "US" }) }
+    var chooseCountry by remember { mutableStateOf(false) }
+    var countryQuery by remember { mutableStateOf("") }
+    val countries = remember { runCatching {
+        val data = org.json.JSONArray(activity.assets.open("countries.json").bufferedReader().use { it.readText() })
+        (0 until data.length()).map { val item = data.getJSONObject(it); DialingCountry(item.getString("id"), item.getString("name"), item.getString("dial")) }
+    }.getOrDefault(listOf(DialingCountry("US", "United States", "+1"))) }
+    val country = countries.firstOrNull { it.id == countryId } ?: DialingCountry("US", "United States", "+1")
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    val ime = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(model.stage, model.codeDelivery) {
+        while (model.stage == "code") { now = System.currentTimeMillis(); delay(1000) }
     }
+    val canGoBack = model.stage in setOf("code", "password", "email", "emailCode") || (model.stage == "phone" && model.telegram.standardBuild)
+    fun goBack() {
+        if (model.busy) return
+        keyboard?.hide(); focus.clearFocus()
+        if (model.stage == "phone") model.work("Opening app settings…") { model.network { model.telegram.editCredentials() } }
+        else { model.telegram.changePhoneNumber(); model.message("") }
+    }
+    BackHandler(canGoBack && !model.busy) { if (ime) { keyboard?.hide(); focus.clearFocus() } else goBack() }
+    fun submit() {
+        if (model.busy) return
+        if (model.stage == "credentials") {
+            model.work("Connecting…") { model.network { model.telegram.connect(apiId.trim(), hash.trim()) } }; return
+        }
+        if (value.isBlank()) return
+        val input = if (model.stage == "phone") TelegramLogin.internationalPhone(value, country.dial) else if (model.stage == "password") value else value.trim()
+        if (input.isEmpty()) return
+        keyboard?.hide(); focus.clearFocus()
+        model.work("Checking with Telegram…") { model.network { model.telegram.authenticate(input) } }
+    }
+    Column(Modifier.widthIn(max = 440.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        if (canGoBack) TextButton(onClick = ::goBack, enabled = !model.busy, contentPadding = PaddingValues(0.dp)) { Icon(Icons.Default.ArrowBack, null); Spacer(Modifier.width(8.dp)); Text("Back") }
+        Text("CINESPICE", fontSize = 16.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(when (model.stage) { "phone" -> "Your phone number"; "code" -> "Enter your code"; "emailCode" -> "Check your email"; "password" -> "Your cloud password"; "email" -> "Your sign-in email"; "setupError", "unsupported" -> "Let’s reconnect"; "loading" -> "Connecting securely"; else -> "Connect Telegram" }, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
+            Text(when(model.stage) {
+                "phone" -> "Choose your country and enter the number linked to your Telegram account."
+                "code" -> model.codeDelivery?.message ?: "Check Telegram on a device where you’re already signed in."
+                "password" -> "Two-step verification is enabled for this account. Enter your Telegram password to finish signing in."
+                "email" -> "Telegram needs an email address to continue this login."
+                "emailCode" -> model.emailCodeDescription
+                "credentials" -> if (model.telegram.standardBuild) "Use your app credentials from my.telegram.org. You only need to enter them once." else "This edition uses Cinespice’s Telegram configuration."
+                else -> "Preparing Telegram and checking for your saved session."
+            }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (model.stage == "credentials" && model.telegram.standardBuild) {
+                OutlinedTextField(apiId, { apiId = it }, Modifier.fillMaxWidth().inputArea(), enabled = !model.busy, label = { Text("API ID") }, shape = RoundedCornerShape(16.dp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(hash, { hash = it }, Modifier.fillMaxWidth().inputArea(), enabled = !model.busy, label = { Text("API hash") }, shape = RoundedCornerShape(16.dp), singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }))
+                Button(onClick = ::submit, enabled = !model.busy && apiId.isNotBlank() && hash.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(16.dp)) { Text("Connect") }
+            } else if (model.stage in setOf("phone", "code", "password", "email", "emailCode")) {
+                if (model.stage == "phone") OutlinedButton(onClick = { chooseCountry = true }, enabled = !model.busy, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(16.dp)) {
+                    Text(country.name, Modifier.weight(1f)); Text(country.dial); Icon(Icons.Default.ArrowDropDown, "Choose country")
+                }
+                if (model.stage == "code" && !model.codeDelivery?.phone.isNullOrEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(model.codeDelivery!!.phone, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = ::goBack, enabled = !model.busy) { Text("Edit number") }
+                }
+                val label = when(model.stage) { "phone" -> "Phone number"; "code" -> "Telegram login code"; "password" -> "Cloud password"; "email" -> "Email address"; else -> "Email verification code" }
+                OutlinedTextField(value, { if (model.stage == "phone") phone = it else entry = it }, Modifier.fillMaxWidth().inputArea(), enabled = !model.busy, label = { Text(label) }, singleLine = true,
+                    prefix = { if (model.stage == "phone" && !value.trim().startsWith("+") && !value.trim().startsWith("00")) Text(country.dial + " ") },
+                    textStyle = if (model.stage in setOf("code", "emailCode")) MaterialTheme.typography.headlineMedium.copy(letterSpacing = 4.sp) else MaterialTheme.typography.bodyLarge,
+                    shape = RoundedCornerShape(16.dp), visualTransformation = if (model.stage == "password") PasswordVisualTransformation() else VisualTransformation.None,
+                    keyboardOptions = KeyboardOptions(keyboardType = when(model.stage) { "phone" -> KeyboardType.Phone; "code" -> if (model.codeDelivery?.numeric == false) KeyboardType.Text else KeyboardType.Number; "emailCode" -> KeyboardType.Number; "email" -> KeyboardType.Email; "password" -> KeyboardType.Password; else -> KeyboardType.Text }, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }))
+                if (model.stage == "password" && model.passwordHint.isNotEmpty()) Text("Hint: " + model.passwordHint, style = MaterialTheme.typography.bodySmall)
+                Button(onClick = ::submit, enabled = !model.busy && value.isNotBlank() && (model.stage != "phone" || value.any { it in '0'..'9' }), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(16.dp)) { Text(if (model.busy) "Please wait…" else when(model.stage) { "phone", "email" -> "Get code"; "password" -> "Log in"; else -> "Submit code" }) }
+                if (model.stage == "phone") Text("Already signed in on another device? Telegram may send your code there instead of by SMS.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (model.stage == "code" || model.stage == "emailCode") {
+                    val remaining = model.codeDelivery?.secondsUntilResend(now) ?: 0
+                    if (model.stage == "emailCode" || model.codeDelivery?.canResend == true) {
+                        TextButton(onClick = { model.work("Requesting another code…") { model.network { model.telegram.resendCode() } } }, enabled = !model.busy && (model.stage == "emailCode" || remaining == 0)) { Text(if (model.stage == "code" && remaining > 0) "Resend code in ${remaining}s" else "Resend code") }
+                    } else Text("No code yet? Check your other Telegram sessions, or go back and check your phone number. Telegram hasn’t offered another delivery method yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else if (model.stage == "loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            else {
+                Button(onClick = { model.work("Connecting…") { model.network { model.telegram.retryConnection() } } }, enabled = !model.busy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(16.dp)) { Text("Retry connection") }
+                if (model.telegram.standardBuild) TextButton(onClick = { model.work("Opening app settings…") { model.network { model.telegram.editCredentials() } } }, enabled = !model.busy) { Text("Change API credentials") }
+            }
+            if (model.status.isNotEmpty()) Text(model.status, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Lock, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Your session stays on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    if (chooseCountry) AlertDialog(onDismissRequest = { chooseCountry = false }, title = { Text("Choose country") }, confirmButton = { TextButton(onClick = { chooseCountry = false }) { Text("Back") } }, text = {
+        Column {
+            OutlinedTextField(countryQuery, { countryQuery = it }, Modifier.fillMaxWidth().inputArea(), label = { Text("Country or calling code") }, singleLine = true)
+            TextButton(onClick = { activity.link("https://github.com/mledoze/countries") }) { Text("Country data: mledoze/countries · ODbL") }
+            LazyColumn(Modifier.heightIn(max = 350.dp)) {
+                items(countries.filter { countryQuery.isBlank() || it.name.contains(countryQuery, true) || it.dial.contains(countryQuery) }, key = { it.id }) { item ->
+                    TextButton(onClick = { countryId = item.id; chooseCountry = false }, modifier = Modifier.fillMaxWidth()) { Text(item.name, Modifier.weight(1f)); Text(item.dial) }
+                }
+            }
+        }
+    })
 }
 
 private val LocalInputAreas = staticCompositionLocalOf { mutableMapOf<Any, androidx.compose.ui.geometry.Rect>() }

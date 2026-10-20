@@ -112,7 +112,7 @@ final class TelegramRangeServer: ObservableObject {
             }
         } catch {
             guard !Task.isCancelled else { return }
-            status = "Streaming interrupted: \(error.localizedDescription). Download first is available."
+            status = "Streaming interrupted: \(error.localizedDescription). Try downloading the file."
             // A response already in progress must end with a short body/closed
             // connection; a second status line would corrupt the video bytes.
             if !responseStarted {

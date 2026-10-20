@@ -106,7 +106,7 @@ The loopback bridge is selected for its known-length HTTP interface and smallest
 
 Tevee targets iOS 15 and Swift 5 language mode with SwiftUI, Network, TDLibFramework and MobileVLCKit. Existing commit `55fe388` built with Xcode 16.4 / iOS 18.5 SDK on macos-15. That result does not validate subsequent changes. Keep iOS 16-only UI/concurrency calls guarded or use iOS 15 equivalents.
 
-TDLib is Boost Software License 1.0; the Swiftgram framework packaging is MIT. VLCKit source headers specify LGPL 2.1 or later and its `COPYING` contains LGPL 2.1; bundled libVLC, codecs and third-party notices also need retention/review if distributing. Telegram-iOS's inspected tree has no top-level LICENSE file; its README explicitly asks derivatives to publish source to comply with its licenses. No license permission is inferred for copying its player. Reuse the architecture through TDLib APIs, not Telegram source. Personal use is the deployment scope; it does not change third-party license texts.
+TDLib is Boost Software License 1.0; the Swiftgram framework packaging is MIT. VLCKit source headers specify LGPL 2.1 or later and its `COPYING` contains LGPL 2.1; bundled libVLC, codecs and third-party notices also need retention/review if distributing. Telegram-iOS's inspected tree has no top-level LICENSE file; its README explicitly asks derivatives to publish source to comply with its licenses. No license permission is inferred for copying its player. Reuse the architecture through TDLib APIs, not Telegram source. Commercial distribution is now intended; this does not change third-party license texts or verify distribution compliance. See BUILD-EDITIONS.md for production signing requirements.
 
 ## Milestone status
 
@@ -119,7 +119,7 @@ TDLib is Boost Software License 1.0; the Swiftgram framework packaging is MIT. V
 | 7: reliability | 24 core tests passed; account/session guards, bounded caches and lifecycle handling implemented; device/scale checks outstanding |
 | 8: build/install | Previous commit has a successful unsigned IPA; current patch requires a new macOS build and signing |
 
-Do not enter Telegram codes, API hashes, database keys or session files in repository fixtures, CI, task chat or logs. Enter credentials only in the installed app. Synthetic fixtures are permitted only in tests and must be identified as such.
+Never put Telegram login codes, database keys, session files or cloud passwords in repository fixtures, CI, task chat or logs. Configured editions may inject the application API ID/hash from private CI secrets into ignored build resources; standard editions accept them on-device. See BUILD-EDITIONS.md. Synthetic fixtures are permitted in tests and must be identified as such.
 
 ## Real-iPhone verification protocol
 

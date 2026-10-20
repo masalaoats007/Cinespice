@@ -55,7 +55,16 @@ struct VLCPlaybackView: View {
                     VStack(spacing: 8) {
                         topBar
                         videoGestures.frame(maxHeight: .infinity)
-                        if !playback.error.isEmpty { notice(playback.error) }
+                        if !playback.error.isEmpty {
+                            notice(playback.error)
+                            if streaming {
+                                Button("Download to try local playback") {
+                                    playback.player.pause(); rangeServer.stop()
+                                    telegram.download(playback.selection.video)
+                                    closePlayer()
+                                }.buttonStyle(.borderedProminent).tint(spice)
+                            }
+                        }
                         if !message.isEmpty { notice(message) }
                         if !playback.resumeWarning.isEmpty {
                             notice(playback.resumeWarning)

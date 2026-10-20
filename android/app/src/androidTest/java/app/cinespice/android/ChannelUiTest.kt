@@ -43,7 +43,7 @@ class ChannelUiTest {
         compose.waitForIdle()
     }
     @After fun cleanup() {
-        scenario.close(); telegram.stage = originalStage; telegram.library = originalLibrary
+        scenario.close(); telegram.stage = originalStage; telegram.library = originalLibrary; telegram.codeDelivery = null
         context.deleteDatabase("library_-95.db"); context.deleteDatabase("saved_-95.db")
         context.getSharedPreferences("cinespice", 0).edit().putString("cinespice.theme", previousTheme).commit()
     }
@@ -81,7 +81,7 @@ class ChannelUiTest {
         compose.onNodeWithText("Done").assertIsDisplayed().performClick()
         compose.onNodeWithContentDescription("Home tab").assertIsDisplayed()
     }
-    @Test fun emptySearchDraftRecreationHistoryAndPalette() {
+    @Test fun emptySearchDraftRecreationNavigationAndPalette() {
         compose.onNodeWithContentDescription("Search tab").performClick()
         compose.onNodeWithText("Search your selected channels").assertIsDisplayed()
         compose.onNodeWithText("Search videos").performClick().performTextInput("Quiet")
@@ -106,12 +106,67 @@ class ChannelUiTest {
             compose.onNodeWithContentDescription("Hero ${index+1} of 7: ${roles[index]}").performTouchInput { swipeLeft() }
             compose.onNodeWithContentDescription("Hero ${index+2} of 7: ${roles[index+1]}").assertIsDisplayed()
         }
-        compose.onNodeWithTag("library-grid").performScrollToIndex(8)
-        compose.onNodeWithContentDescription("History tab").performClick()
-        compose.onNodeWithText("Recently watched").assertIsDisplayed()
+        compose.onNodeWithContentDescription("History tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Favorites and Watchlist").assertDoesNotExist()
+        listOf("Home", "Search", "Favorites", "Downloads").forEach {
+            compose.onNodeWithContentDescription("$it tab").assertIsDisplayed()
+        }
+        compose.onNodeWithContentDescription("Favorites tab").performClick()
+        compose.onNodeWithText("Saved for later").assertIsDisplayed()
         compose.onNodeWithContentDescription("Home tab").performClick()
         compose.onNodeWithContentDescription("Hero 1 of 7: JUST ADDED").assertIsDisplayed()
     }
+    @Test fun phoneCodeAndCloudPasswordHaveSeparateForms() {
+        scenario.onActivity { telegram.stage = "phone"; it.model.changed() }
+        compose.onNodeWithText("Get code").assertIsDisplayed()
+        compose.onNodeWithText("API ID").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Choose country").performClick()
+        compose.onNodeWithText("Country or calling code").performTextInput("India")
+        compose.onNodeWithText("India").performClick()
+        compose.onAllNodesWithText("+91", substring = true).onFirst().assertIsDisplayed()
+        compose.onNodeWithText("Phone number").performTextInput("2025550100")
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        scenario.onActivity {
+            telegram.codeDelivery = TelegramLogin.CodeDelivery(Json.obj("phone_number", "+912025550100", "type", Json.obj("@type", "authenticationCodeTypeTelegramMessage"), "next_type", Json.obj("@type", "authenticationCodeTypeSms"), "timeout", 30), System.currentTimeMillis())
+            telegram.stage = "code"; it.model.changed()
+        }
+        compose.onNodeWithText("Open Telegram on a device", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Resend code in", substring = true).assertIsNotEnabled()
+        compose.onNodeWithText("Back").performClick()
+        compose.onNodeWithText("Phone number").assertTextContains("2025550100")
+        compose.onAllNodesWithText("+91", substring = true).onFirst().assertIsDisplayed()
+        scenario.onActivity { telegram.stage = "code"; it.model.changed() }
+        compose.onNodeWithText("Telegram login code").performTextInput("12345")
+        compose.onNodeWithText("Submit code").assertIsEnabled()
+        compose.onNodeWithText("Cloud password").assertDoesNotExist()
+        scenario.onActivity { telegram.stage = "password"; it.model.changed() }
+        compose.onNodeWithText("Cloud password").assertIsDisplayed()
+        compose.onNodeWithText("Log in").assertIsDisplayed()
+        compose.onNodeWithText("Telegram login code").assertDoesNotExist()
+    }
+
+    @Test fun channelPaginationAndSortingAreIndependentOfHomeNavigation() {
+        scenario.onActivity { activity ->
+            repeat(61) { index -> telegram.library!!.save(Video(Json.obj("chatId", -101, "messageId", 100 + index, "name", "Page film %03d.mp4".format(index), "size", 1024, "date", 2000 + index))) }
+            activity.model.reload()
+            activity.model.browse(activity.model.channels.first { it.id() == -101L })
+            activity.model.order(2)
+            assertEquals(2, activity.model.channelOrder(-101))
+            assertEquals(0, activity.model.channelOrder(-102))
+        }
+        compose.onNodeWithContentDescription("Home tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Search tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Favorites tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Downloads tab").assertDoesNotExist()
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasText("3", substring = false))
+        compose.onNodeWithText("3", substring = false).performClick()
+        scenario.onActivity { assertEquals(2, it.model.collectionPageNumber) }
+        scenario.recreate()
+        scenario.onActivity { assertEquals(2, it.model.channelOrder(-101)) }
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithContentDescription("Home tab").assertIsDisplayed()
+    }
+
     @Test fun savedMembershipPersistsAcrossDatabaseReopenAndAccountsStayIsolated() {
         val video = Video(Json.obj("chatId", -101, "messageId", 1, "name", "Film.mp4"))
         val first = SavedStore.open(context, -96)

@@ -22,14 +22,14 @@ format, screen size or failure scenario has been tested on an iPhone.
 
 ### UI redesign
 
-- Five compact tabs: Home, Favorites, Search, Downloads, History; one channel picker.
+- Four floating bottom tabs: Home, Search, Favorites, Downloads. Channels and Profile remain in the header.
 - Persistent Favorites and Watchlist, four palettes (two dark/two light), title and
   filename-year sorting. Latest releases is the default; unknown years stay last.
 - Empty search until typing; independent destination scroll positions; five recent
-  history cards. Tapping Cinespice refreshes the current collection/search or queues
+  Continue Watching cards. Tapping Cinespice refreshes the current search or queues
   one newest page per selected source.
 - Seven hero slots: recently added, daily pick, four visibly unavailable catalogue
-  trends, last searched. No metadata provider is connected yet.
+  trends, last searched. File details offer optional Wikidata title lookup.
 - Completed download status persists. Player options use compact dark panels.
 - Profile shows real account name/username, themes, storage and creator links.
   Request feature is a coming-later label, not an active submission button.
@@ -50,8 +50,9 @@ Physical touch behavior and native builds for this update remain unverified.
 
 ## Connect and choose your videos
 
-1. Enter your Telegram API ID/hash from `my.telegram.org`, then your own account's
-   phone number, login code and any requested two-step/email verification.
+1. In the configured edition, choose your country and enter your phone number,
+   login code and any requested cloud password/email verification. The standard
+   edition first asks for your API ID/hash from `my.telegram.org`.
 2. Open the **Channels icon** in the header and select the channels/groups you want to browse.
 3. Tap the arrow beside a selected source to browse, or search by title/filename, then tap a video to play.
 
@@ -220,3 +221,7 @@ player ideas are recorded in [nextupdare.md](nextupdare.md) for later discussion
 Review notices and obligations for TDLibFramework/TDLib and MobileVLCKit. Telegram,
 VLC-iOS, TeleSpeed and Nuvio source checkouts were inspected as references; their
 full applications or plugin systems are not copied into Cinespice.
+
+## Build editions and updated library
+
+See [Build editions](docs/BUILD-EDITIONS.md) for the configured edition (phone login without API entry), standard edition, one-time GitHub secret setup, channel pagination and optional Wikidata lookup. Generate the build resource before XcodeGen/Gradle.

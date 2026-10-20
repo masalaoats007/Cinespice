@@ -6,10 +6,11 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 ## Navigation and space
 
-- Header: CINESPICE refresh button, one Channels icon, Profile icon. A back arrow
-  appears inside a collection. No duplicate search or channel-selection shortcuts.
-- Footer: **Home / Favorites / Search / Downloads / History**. Five equal cells;
-  48-point minimum targets, 3-point vertical padding. Header controls remain at
+- Header: CINESPICE refresh button, Channels and Profile.
+  A channel page has Back, the channel name, sorting and channel-only search.
+- Floating bottom navigation: **Home / Search / Favorites / Downloads**; hidden inside a channel.
+  Four equal cells in a rounded material bar, 16-point side margins, 8-point outer
+  vertical spacing, and 48-point minimum targets. Header controls remain at
   least 44 points. Safe-area space is retained for the camera and home indicator.
 - Content uses 20–24-point margins, adaptive grids (140-point minimum cards),
   a 1,200-point maximum content width, and 16–20-point section gaps.
@@ -27,12 +28,11 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 | Page | Content and behavior |
 | --- | --- |
-| Home | Seven-slot swipe hero, Continue Watching (up to 12), and one horizontal rail of selected channel cards. No global library grid or per-channel video rails. |
+| Home | Seven-slot swipe hero, Continue Watching (up to five), then one horizontal rail of up to ten files per selected channel; each channel name/arrow opens its page. |
 | Favorites | Favorites and Watchlist segmented choices; empty guidance; sorting |
 | Search | Universal input across all selected channels and groups. Empty guidance initially; only nonempty queries show cached and remote results; paging remains bounded |
 | Downloads | Preparing, active and completed full downloads from selected sources; video menu exposes cancel/export; streaming fragments are excluded |
-| History | Five most recently watched entries; older resume positions remain stored |
-| Collection | One selected channel's videos, scoped search, shared sorting and explicit Load more / Retry pagination; no automatic endless scroll |
+| Collection | One selected channel's files, scoped search, account/channel-specific persisted sorting and numbered pages of 30 loaded files; Load more adds available pages |
 | Profile | Real account display name/username, palette, request-feature placeholder, storage/history cleanup, creator links, sign-out |
 
 The source sheet has **My channels / Selected / All sources** scopes and shows
@@ -49,14 +49,17 @@ collection page requests at most 30 video and 30 document messages per page.
 
 ### Saved lists and downloads
 
-The video ••• menu adds/removes **Favorites** or **Watchlist**, with saving feedback
+Long press a file to open its options. Cards have explicit Play and Info buttons.
+File details have Back, Favorites/Watchlist controls and optional Wikidata lookup.
+The context menu adds/removes **Favorites** or **Watchlist**, with saving feedback
 and a heart/bookmark on the card. SQLite schema 3 stores membership by scoped
 message ID (`chatID:messageID`), independently of history/cache state. A saved
 remote search result gets metadata persisted with its membership. Deselecting a
 source hides its items without deleting membership. Each Telegram account has its
 own database. Custom named lists are a future extension, not implemented here.
 
-Download first is available on video menus and in the player's More panel.
+Download is available on every file context menu. Unknown-size files offer a
+Download action before playback; streaming errors also offer local playback via download.
 Downloads show preparing/downloading/cancelling states. Completed state is saved
 for later launches. Export uses the original filename through the iOS Files picker.
 An active download queue is not persisted/reconciled across process termination;
@@ -66,10 +69,12 @@ always refreshes message/file state instead of blindly trusting stored paths.
 ### Sorting and metadata truthfulness
 
 Default: **Latest releases**. Other choices: Earliest releases, Title A–Z, Title
-Z–A, Recently added, Oldest uploads. The choice is a local preference shared by
-library, collection, lists, downloads and search. History stays chronological.
+Z–A, Recently added, Oldest uploads. Channels persist their own account-scoped
+preference, used by both the channel page and its home rail. Lists, downloads and
+search keep the global preference. Continue Watching stays chronological.
 
-Until a metadata provider is connected, release sorting uses **filename year
+Wikidata lookup shows optional suggestions and does not overwrite file identity
+or sort metadata. Release sorting uses **filename year
 hints**, with the displayed title as fallback only when there is no filename.
 A standalone year from 1880–2099 is accepted; ambiguous multiple years and
 embedded numbers such as `12024p` or `S02E2024` are rejected. These hints can be
