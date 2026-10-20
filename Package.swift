@@ -12,7 +12,7 @@ let package = Package(
         .target(name: "TeveeStreaming", dependencies: ["CSQLite"], path: "Sources", exclude: [
             "TelegramClient.swift", "TelegramLibraryView.swift", "LibraryStore.swift", "SecureStore.swift", "PlaybackController.swift", "LibraryComponents.swift", "LibrarySettingsView.swift",
             "PlayerOrientation.swift", "VideoExport.swift", "TelegramRangeServer.swift", "TeveeApp.swift", "VLCPlaybackView.swift"
-        ], sources: ["HTTPVideoRequest.swift", "TelegramRangeReader.swift", "TelegramMedia.swift", "LibraryDatabase.swift", "ThumbnailCache.swift", "LibraryPaging.swift", "TelegramDiscovery.swift", "TelegramVideoSearch.swift", "PlaybackActivity.swift", "SubtitleAppearance.swift"]),
+        ], sources: ["TelegramLogin.swift", "HTTPVideoRequest.swift", "TelegramRangeReader.swift", "TelegramMedia.swift", "LibraryDatabase.swift", "ThumbnailCache.swift", "LibraryPaging.swift", "TelegramDiscovery.swift", "TelegramVideoSearch.swift", "PlaybackActivity.swift", "SubtitleAppearance.swift"]),
         .testTarget(name: "TeveeStreamingTests", dependencies: ["TeveeStreaming"], path: "Tests")
     ]
 )

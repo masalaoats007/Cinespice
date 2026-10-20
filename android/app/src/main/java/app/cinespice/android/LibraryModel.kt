@@ -14,6 +14,9 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
     internal val telegram = (application as CinespiceApp).telegram
     private val preferences = application.getSharedPreferences("cinespice", 0)
     var stage by mutableStateOf(telegram.stage); private set
+    internal var codeDelivery by mutableStateOf(telegram.codeDelivery); private set
+    var emailCodeDescription by mutableStateOf(telegram.emailCodeDescription); private set
+    var passwordHint by mutableStateOf(telegram.passwordHint); private set
     var page by mutableStateOf((saved.get<String>("page") ?: "home").let { if (it == "channels") "home" else it }); private set
     var chat by mutableLongStateOf(saved.get<Long>("chat") ?: 0); private set
     var chatTitle by mutableStateOf(saved.get<String>("chatTitle") ?: ""); private set
@@ -70,6 +73,7 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
     init { telegram.listen(this); changed() }
     override fun changed() {
         stage = telegram.stage
+        codeDelivery = telegram.codeDelivery; emailCodeDescription = telegram.emailCodeDescription; passwordHint = telegram.passwordHint
         if (stage == "ready" && account != telegram.library?.accountId) {
             scan?.cancel(); queryJob?.cancel(); collectionQueryJob?.cancel(); session = null; collectionSession = null; queryEpoch++; collectionQueryEpoch++
             store?.close(); artwork?.close()

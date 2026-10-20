@@ -339,9 +339,11 @@ struct PhoneNumberEntry: View {
                     .padding(16).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
             }.accessibilityLabel("Country: \(selected.name), \(selected.dial)")
             HStack {
-                Text(selected.dial).font(.headline).padding(.leading, 12)
+                if !number.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("+") && !number.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("00") {
+                    Text(selected.dial).font(.headline).padding(.leading, 16)
+                }
                 TextField("Phone number", text: $number).keyboardType(.phonePad).textContentType(.telephoneNumber)
-                    .padding(.vertical, 12)
+                    .textFieldStyle(.plain).padding(16)
             }.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
         }.sheet(isPresented: $choosing) {
             NavigationView {

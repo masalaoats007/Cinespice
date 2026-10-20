@@ -7,7 +7,15 @@ One source tree produces two editions on iOS and Android:
 
 ## Configure once in GitHub
 
-In repository Settings → Secrets and variables → Actions, create repository secrets named `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`, using the application registered at https://my.telegram.org. Do not paste values in chat, source files, workflow YAML, or logs.
+1. Open [Cinespice → Settings → Secrets and variables → Actions](https://github.com/masalaoats007/Cinespice/settings/secrets/actions).
+2. Under **Repository secrets**, click **New repository secret**.
+3. Name: `TELEGRAM_API_ID`. Secret: the numeric **App api_id** from **API development tools** at https://my.telegram.org. Click **Add secret**.
+4. Add a second repository secret: name `TELEGRAM_API_HASH`, value the **App api_hash** from the same Telegram app. Click **Add secret**.
+5. Open the repository’s **Actions** tab. Choose **Build Cinespice IPA** (iOS first) or **Build Cinespice Android APK**.
+6. Click **Run workflow**, select the branch containing the fixes (`coderabbit/configure-api-credential-builds/b70ec2b5` until merged; then `IOS`), choose edition **configured**, and run it. Choose **both** if you also want the edition that asks for API credentials.
+7. Open the finished run and download the artifact whose name contains **configured**: `Cinespice-configured-unsigned-ipa` for iOS or `Cinespice-configured-Android-arm64-v8a` for most Android phones. The iOS IPA still needs signing.
+
+Use **repository secrets**, not variables or environment secrets. GitHub will hide the saved values; you can replace them later. Do not paste values in chat, source files, workflow YAML, or logs. Adding secrets does not change an already downloaded IPA/APK: build and install a fresh configured artifact. Automatic pull request builds are standard editions and still ask for API credentials.
 
 Release-branch push workflows and the default manual selection produce both editions with distinct artifact names. Pull requests and coding-task branch pushes produce only the standard edition. Manual runs can select either edition or both. Missing/invalid secrets fail the configured build without exposing their values; they never silently produce a customer build with an API form. Both editions use the same application ID and signing arrangement, so installing one replaces the other.
 
@@ -38,3 +46,11 @@ Home, Search, Favorites and Downloads are the four floating bottom destinations.
 Online descriptions use optional, user-triggered Wikidata search. Only the edited lookup title is sent. Results are suggestions, not verified identification; no catalogue covers every filename. Local Telegram captions, file metadata and artwork remain available without it. Wikidata structured data is CC0: https://www.wikidata.org/wiki/Wikidata:Licensing.
 
 Country names/calling codes are a derived subset of https://github.com/mledoze/countries (retrieved 2026-10-20), licensed under ODbL 1.0. The derived databases are `Resources/BuildConfig/countries.json` and `android/app/src/main/assets/countries.json`; they remain under ODbL. See `docs/countries-LICENSE.txt`.
+
+## Login recovery
+
+The login screen accepts either a national number with the selected calling code or a pasted full number beginning with `+` / `00`. Back and Edit number return to the phone form without erasing it. The next submission changes the phone through TDLib’s supported `setAuthenticationPhoneNumber` flow; returning to the form does not send another code by itself.
+
+Code instructions come from Telegram’s `code_info`, including whether delivery is to an existing Telegram session, SMS, or a call. Resend appears only when Telegram supplies a next delivery method and stays disabled until its timeout passes. Telegram controls delivery; third-party applications cannot guarantee SMS. Email verification and cloud password appear only when Telegram requests them.
+
+Connection/setup errors have Retry connection, and the standard edition can change API credentials. Retry reopens the TDLib client with the existing database/key; it does not delete your library or session. Startup ignores stale authorization snapshots and submits TDLib parameters only once per client.

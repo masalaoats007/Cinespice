@@ -45,6 +45,12 @@ final class TelegramClient: ObservableObject {
     @Published private(set) var cancellingDownloads: Set<Int32> = []
     @Published private(set) var isAuthenticating = false
     private var authenticationRequest = UUID()
+    private var loginStartup = TelegramLoginStartup()
+    private var lastAuthorizationType = ""
+    @Published private(set) var codeDelivery: TelegramCodeDelivery?
+    @Published private(set) var emailCodeDescription = "Check your email for the verification code from Telegram."
+    @Published private(set) var passwordHint = ""
+    private var editingCredentials = false
 
     @Published private(set) var videoSearchResults: [TelegramVideo] = []
     @Published private(set) var isSearchingVideos = false
@@ -128,7 +134,22 @@ final class TelegramClient: ObservableObject {
         catch { stage = .error(error.localizedDescription); return }
         self.apiID = Int(value); self.apiHash = hash; stage = .loading; status = ""
         startReceiver()
-        send(["@type": "getAuthorizationState"])
+        if lastAuthorizationType == "authorizationStateWaitTdlibParameters" { configure() }
+        refreshAuthorizationState()
+    }
+
+    private func refreshAuthorizationState() {
+        let client = clientID
+        send(["@type": "getAuthorizationState"]) { [weak self] result in
+            guard let self, self.clientID == client else { return }
+            switch result {
+            case .success(let state):
+                // Updates are authoritative; an older snapshot must not rewind login.
+                if !self.loginStartup.receivedUpdate { self.handle(state) }
+            case .failure(let error):
+                if !self.loginStartup.receivedUpdate { self.stage = .error(error.localizedDescription) }
+            }
+        }
     }
 
     func submitPhone(_ phone: String) { submitAuthentication(["@type": "setAuthenticationPhoneNumber", "phone_number": phone]) }
@@ -150,7 +171,32 @@ final class TelegramClient: ObservableObject {
             }
         }
     }
-    func resetAuth() { authenticationRequest = UUID(); stage = .credentials; status = ""; isAuthenticating = false; restored = false; restoreSession() }
+    func changePhoneNumber() {
+        guard !isAuthenticating, [.code, .password, .email, .emailCode].contains(stage) else { return }
+        stage = .phone; status = ""
+    }
+    func resendCode() {
+        guard stage == .emailCode || (stage == .code && codeDelivery?.canResend == true && codeDelivery!.secondsUntilResend(at: Date()) == 0) else { return }
+        submitAuthentication(["@type": "resendAuthenticationCode"])
+    }
+    func resetAuth() {
+        guard !isAuthenticating else { return }
+        status = ""
+        guard apiID > 0 else { restored = false; stage = .credentials; restoreSession(); return }
+        // Re-open the client; preserve its database, encryption key and saved session.
+        stage = .loading
+        send(["@type": "close"]) { [weak self] result in
+            if case let .failure(error) = result, !(error is CancellationError) { self?.stage = .error(error.localizedDescription) }
+        }
+    }
+    func editAPICredentials() {
+        guard TelegramBuild.isStandard, !isAuthenticating else { return }
+        if !running { stage = .credentials; status = ""; return }
+        editingCredentials = true; stage = .loading
+        send(["@type": "close"]) { [weak self] result in
+            if case let .failure(error) = result, !(error is CancellationError) { self?.editingCredentials = false; self?.stage = .error(error.localizedDescription) }
+        }
+    }
 
     func refreshChats() { loadMoreChats() }
     func loadMoreChats() {
@@ -497,14 +543,20 @@ final class TelegramClient: ObservableObject {
         if value["@type"] as? String == "updateFile", let file = value["file"] as? [String: Any] { updateFile(file); return }
         if value["@type"] as? String == "error" { status = value["message"] as? String ?? "Telegram request failed"; return }
         let responseType = value["@type"] as? String ?? ""
-        let type = responseType == "updateAuthorizationState" ? (value["authorization_state"] as? [String: Any])?["@type"] as? String : responseType
+        if responseType == "updateAuthorizationState" { loginStartup.observeUpdate() }
+        let auth = responseType == "updateAuthorizationState" ? value["authorization_state"] as? [String: Any] ?? [:] : value
+        let type = auth["@type"] as? String
+        if let type, type.hasPrefix("authorizationState") { lastAuthorizationType = type }
         switch type {
         case "authorizationStateWaitTdlibParameters": configure()
         case "authorizationStateWaitPhoneNumber": stage = .phone
-        case "authorizationStateWaitCode": stage = .code
-        case "authorizationStateWaitPassword": stage = .password
+        case "authorizationStateWaitCode":
+            codeDelivery = TelegramCodeDelivery(auth["code_info"] as? [String: Any] ?? [:]); stage = .code
+        case "authorizationStateWaitPassword": passwordHint = auth["password_hint"] as? String ?? ""; stage = .password
         case "authorizationStateWaitEmailAddress": stage = .email
-        case "authorizationStateWaitEmailCode": stage = .emailCode
+        case "authorizationStateWaitEmailCode":
+            let pattern = (auth["code_info"] as? [String: Any])?["email_address_pattern"] as? String ?? "your email"
+            emailCodeDescription = "Enter the verification code Telegram sent to " + pattern + "."; stage = .emailCode
         case "authorizationStateReady": startAccount()
         case "authorizationStateWaitOtherDeviceConfirmation": stage = .error("Telegram requires confirmation in another device. Use phone login again or confirm in your existing Telegram app.")
         case "authorizationStateClosed": finishClosedClient()
@@ -557,17 +609,21 @@ final class TelegramClient: ObservableObject {
         requestTimeouts.removeAll()
         let callbacks = Array(completions.values); completions.removeAll()
         callbacks.forEach { $0(.failure(CancellationError())) }
-        clientID = td_create_client_id()
+        clientID = td_create_client_id(); loginStartup = TelegramLoginStartup(); lastAuthorizationType = ""
+        codeDelivery = nil; passwordHint = ""
         if loggingOut {
             loggingOut = false; apiID = 0; apiHash = ""
             do { try SecureStore.remove("telegram_api_credentials") }
             catch { stage = .error(error.localizedDescription); return }
         }
         stage = .credentials
-        restored = false; restoreSession()
+        if editingCredentials { editingCredentials = false; apiID = 0; apiHash = ""; status = "" }
+        else { restored = false; restoreSession() }
     }
 
     private func configure() {
+        guard apiID > 0, loginStartup.beginParameters() else { return }
+        let client = clientID
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Tevee/TDLib", isDirectory: true)
         let files = root.appendingPathComponent("files", isDirectory: true)
         do {
@@ -578,9 +634,13 @@ final class TelegramClient: ObservableObject {
                 "use_message_database": true, "use_secret_chats": false, "api_id": apiID, "api_hash": apiHash,
                 "system_language_code": Locale.current.languageCode ?? "en", "device_model": "iPhone",
                 "system_version": ProcessInfo.processInfo.operatingSystemVersionString, "application_version": "1.1"] ) { [weak self] result in
-                    if case let .failure(error) = result { self?.stage = .error("Telegram setup failed: \(error.localizedDescription)") }
+                    guard let self, self.clientID == client else { return }
+                    if case let .failure(error) = result {
+                        self.loginStartup.parametersFailed()
+                        self.stage = .error("Telegram setup failed: \(error.localizedDescription)")
+                    }
                 }
-        } catch { stage = .error("Could not prepare secure storage: \(error.localizedDescription)") }
+        } catch { loginStartup.parametersFailed(); stage = .error("Could not prepare secure storage: \(error.localizedDescription)") }
     }
     private func send(_ request: [String: Any], completion: ((Result<[String: Any], Error>) -> Void)? = nil) {
         var request = request

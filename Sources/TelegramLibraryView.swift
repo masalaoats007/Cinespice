@@ -508,47 +508,81 @@ struct TelegramLibraryView: View {
 
     @ViewBuilder private var authentication: some View {
         switch telegram.stage {
-        case .credentials: if TelegramBuild.isStandard { authForm("Your private cinema.", subtitle: "Connect your Telegram account. API credentials and your session stay on this iPhone.") {
-            TextField("API ID", text: $apiID).keyboardType(.numberPad)
-            SecureField("API hash", text: $apiHash)
-            Button { telegram.connect(apiID: apiID, apiHash: apiHash) } label: { Text("Connect Telegram").frame(minHeight: 44) }.buttonStyle(.borderedProminent).tint(theme.accent)
-            Text("Get your API ID and hash at my.telegram.org. No backend, subscriptions or analytics.").font(.caption).foregroundStyle(theme.muted)
-        }
-        } else { ProgressView("Connecting to Telegram…") }
-        case .phone: authForm("Your number. Your cinema.", subtitle: "Choose your country and enter the phone number you use for Telegram.") {
-            PhoneNumberEntry(country: $country, number: $phone)
-            authButton("Get code", action: submitAuthentication).disabled(phone.filter(\.isNumber).isEmpty)
-        }
-        case .code: authForm("Enter your login code", subtitle: "Check Telegram or the delivery method Telegram selected for your account.") {
-            TextField("Login code", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode)
-                .font(.system(size: 30, weight: .semibold, design: .monospaced)).multilineTextAlignment(.center).padding(.vertical, 12)
-            authButton("Submit code", action: submitAuthentication).disabled(code.isEmpty)
-        }
-        case .password: authForm("Your cloud password", subtitle: "Your account has two-step verification enabled. Enter your Telegram password to finish signing in.") {
-            SecureField("Cloud password", text: $password).textContentType(.password).submitLabel(.go).onSubmit(submitAuthentication)
-            authButton("Log in", action: submitAuthentication).disabled(password.isEmpty)
-        }
-        case .email: authForm("Your sign-in email", subtitle: "Telegram requires an email address for this login.") {
-            TextField("Email", text: $email).keyboardType(.emailAddress).textContentType(.emailAddress).submitLabel(.go).onSubmit(submitAuthentication)
-            authButton("Get code", action: submitAuthentication).disabled(email.isEmpty)
-        }
-        case .emailCode: authForm("Check your email", subtitle: "Enter the verification code from Telegram.") {
-            TextField("Email code", text: $emailCode).keyboardType(.numberPad).textContentType(.oneTimeCode)
-            authButton("Submit code", action: submitAuthentication).disabled(emailCode.isEmpty)
-        }
-        case .loading: VStack(spacing: 24) { Text("CINESPICE").font(.system(size: 28, weight: .black, design: .rounded)).tracking(6); ProgressView("Restoring your library…").tint(theme.accent) }
-        case let .error(message): authForm("Connection needs attention", subtitle: message) { Button { telegram.resetAuth() } label: { Text("Back to sign in").frame(minHeight: 44) }.buttonStyle(CinespiceButtonStyle()).tint(theme.accent) }
+        case .credentials:
+            if TelegramBuild.isStandard {
+                authForm("Connect Telegram", subtitle: "Use your app credentials from my.telegram.org. You only need to enter them once.") {
+                    authInput { TextField("API ID", text: $apiID).keyboardType(.numberPad) }
+                    authInput { SecureField("API hash", text: $apiHash) }
+                    authButton("Connect") { telegram.connect(apiID: apiID.trimmingCharacters(in: .whitespacesAndNewlines), apiHash: apiHash) }
+                }
+            } else { ProgressView("Connecting to Telegram…") }
+        case .phone:
+            authForm("Your phone number", subtitle: "Choose your country and enter the number linked to your Telegram account.") {
+                PhoneNumberEntry(country: $country, number: $phone)
+                authButton("Get code", action: submitAuthentication).disabled(phone.filter(\.isNumber).isEmpty)
+                Text("Already signed in on another device? Telegram may send your code there instead of by SMS.").font(.footnote).foregroundStyle(theme.muted)
+            }
+        case .code:
+            authForm("Enter your code", subtitle: telegram.codeDelivery?.message ?? "Check Telegram on a device where you’re already signed in.") {
+                if let delivery = telegram.codeDelivery, !delivery.phone.isEmpty {
+                    HStack { Text(delivery.phone).font(.subheadline.weight(.semibold)); Spacer(); Button("Edit number", action: telegram.changePhoneNumber).disabled(telegram.isAuthenticating) }
+                }
+                authInput {
+                    TextField("Login code", text: $code).keyboardType(telegram.codeDelivery?.numeric == false ? .default : .numberPad).textContentType(.oneTimeCode)
+                        .font(.system(size: 28, weight: .semibold, design: .monospaced)).multilineTextAlignment(.center)
+                }
+                authButton("Submit code", action: submitAuthentication).disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                resendControl
+            }
+        case .password:
+            authForm("Your cloud password", subtitle: "Two-step verification is enabled for this account. Enter your Telegram password to finish signing in.") {
+                authInput { SecureField("Cloud password", text: $password).textContentType(.password).submitLabel(.go).onSubmit(submitAuthentication) }
+                if !telegram.passwordHint.isEmpty { Text("Hint: " + telegram.passwordHint).font(.footnote).foregroundStyle(theme.muted) }
+                authButton("Log in", action: submitAuthentication).disabled(password.isEmpty)
+            }
+        case .email:
+            authForm("Your sign-in email", subtitle: "Telegram needs an email address to continue this login.") {
+                authInput { TextField("Email address", text: $email).keyboardType(.emailAddress).textContentType(.emailAddress).submitLabel(.go).onSubmit(submitAuthentication) }
+                authButton("Get code", action: submitAuthentication).disabled(email.isEmpty)
+            }
+        case .emailCode:
+            authForm("Check your email", subtitle: telegram.emailCodeDescription) {
+                authInput { TextField("Email code", text: $emailCode).keyboardType(.numberPad).textContentType(.oneTimeCode).font(.system(size: 28, weight: .semibold, design: .monospaced)).multilineTextAlignment(.center) }
+                authButton("Submit code", action: submitAuthentication).disabled(emailCode.isEmpty)
+                Button("Resend email code", action: telegram.resendCode).frame(minHeight: 44).disabled(telegram.isAuthenticating)
+            }
+        case .loading:
+            authForm("Connecting securely", subtitle: "Preparing Telegram and checking for your saved session.") { ProgressView().tint(theme.accent).frame(maxWidth: .infinity).padding() }
+        case let .error(message):
+            authForm("Let’s reconnect", subtitle: message) {
+                authButton("Retry connection", action: telegram.resetAuth)
+                if TelegramBuild.isStandard { Button("Change API credentials", action: telegram.editAPICredentials).frame(minHeight: 44) }
+            }
         case .ready: EmptyView()
+        }
+    }
+    private var resendControl: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let remaining = telegram.codeDelivery?.secondsUntilResend(at: context.date) ?? 0
+            VStack(alignment: .leading, spacing: 8) {
+                if telegram.codeDelivery?.canResend == true {
+                    Button(remaining > 0 ? "Resend code in \(remaining)s" : "Resend code", action: telegram.resendCode)
+                        .frame(minHeight: 44).disabled(remaining > 0 || telegram.isAuthenticating)
+                } else {
+                    Text("No code yet? Check your other Telegram sessions, or go back and check your phone number. Telegram hasn’t offered another delivery method yet.")
+                        .font(.footnote).foregroundStyle(theme.muted)
+                }
+            }
         }
     }
     private func submitAuthentication() {
         guard !telegram.isAuthenticating else { return }
         switch telegram.stage {
+        case .credentials: telegram.connect(apiID: apiID.trimmingCharacters(in: .whitespacesAndNewlines), apiHash: apiHash)
         case .phone:
-            let digits = phone.filter(\.isNumber)
-            guard !digits.isEmpty else { return }
             let dial = DialingCountry.all.first { $0.id == country }?.dial ?? "+1"
-            telegram.submitPhone(dial + digits)
+            let number = TelegramPhoneNumber.international(phone, dial: dial)
+            if !number.isEmpty { telegram.submitPhone(number) }
         case .code: if !code.isEmpty { telegram.submitCode(code.trimmingCharacters(in: .whitespacesAndNewlines)) }
         case .password: if !password.isEmpty { telegram.submitPassword(password) }
         case .email: if !email.isEmpty { telegram.submitEmail(email.trimmingCharacters(in: .whitespacesAndNewlines)) }
@@ -556,24 +590,52 @@ struct TelegramLibraryView: View {
         default: break
         }
     }
-    private func authButton(_ title: String = "Continue", action: @escaping () -> Void) -> some View { Button(action: action) {
-        HStack { if telegram.isAuthenticating { ProgressView() }; Text(telegram.isAuthenticating ? "Checking…" : title) }.frame(minHeight: 44)
-    }.buttonStyle(.borderedProminent).tint(theme.accent).disabled(telegram.isAuthenticating) }
+    private func authInput<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content().textFieldStyle(.plain).padding(16).frame(minHeight: 56)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(theme.muted.opacity(0.2), lineWidth: 1))
+            .disabled(telegram.isAuthenticating)
+    }
+    private func authButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) { if telegram.isAuthenticating { ProgressView() }; Text(telegram.isAuthenticating ? "Please wait…" : title).font(.headline) }
+                .frame(maxWidth: .infinity, minHeight: 40)
+        }.buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle(radius: 16)).tint(theme.accent).disabled(telegram.isAuthenticating)
+    }
+    private var canGoBackInLogin: Bool {
+        [.code, .password, .email, .emailCode].contains(telegram.stage) || (telegram.stage == .phone && TelegramBuild.isStandard)
+    }
+    private func goBackInLogin() {
+        if telegram.stage == .phone { telegram.editAPICredentials() } else { telegram.changePhoneNumber() }
+    }
     private func authForm<Content: View>(_ title: String, subtitle: String, @ViewBuilder content: () -> Content) -> some View {
-        NavigationView { ScrollView {
-            VStack(alignment: .leading, spacing: 23) {
-                Text("CINESPICE").font(.system(size: 22, weight: .black, design: .rounded)).tracking(5).foregroundStyle(theme.accent).padding(.bottom, 48)
-                Text(title).font(.system(size: 38, weight: .medium, design: .serif)).tracking(-1)
-                Text(subtitle).font(.subheadline).foregroundStyle(theme.muted).lineSpacing(5)
-                content().textFieldStyle(.roundedBorder).textInputAutocapitalization(.never).disableAutocorrection(true)
-                if !telegram.status.isEmpty { Text(telegram.status).font(.caption).foregroundStyle(.orange) }
-            }.padding(28).frame(maxWidth: 500).frame(maxWidth: .infinity)
-        }.background(theme.background).toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Enter", action: submitAuthentication).disabled(telegram.isAuthenticating)
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "film").font(.title3)
+                        Text("CINESPICE").font(.system(size: 16, weight: .black, design: .rounded)).tracking(3)
+                    }.foregroundStyle(theme.accent).padding(.bottom, 8)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(title).font(.system(size: 30, weight: .bold, design: .rounded)).tracking(-0.6)
+                        Text(subtitle).font(.subheadline).foregroundStyle(theme.muted).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+                    }
+                    VStack(alignment: .leading, spacing: 16) { content() }
+                        .textInputAutocapitalization(.never).disableAutocorrection(true)
+                    if !telegram.status.isEmpty {
+                        Label(telegram.status, systemImage: "info.circle").font(.footnote).foregroundStyle(theme.accent)
+                    }
+                    Label("Your session stays on this device.", systemImage: "lock.shield").font(.footnote).foregroundStyle(theme.muted).padding(.top, 8)
+                }.padding(24).frame(maxWidth: 440).frame(maxWidth: .infinity)
+            }.background(theme.background).navigationBarTitleDisplayMode(.inline).toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if canGoBackInLogin { Button(action: goBackInLogin) { Label("Back", systemImage: "chevron.left").frame(minHeight: 44) }.disabled(telegram.isAuthenticating) }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Enter", action: submitAuthentication).disabled(telegram.isAuthenticating)
+                }
             }
-        } }.navigationViewStyle(.stack)
-
+        }.navigationViewStyle(.stack)
     }
 }

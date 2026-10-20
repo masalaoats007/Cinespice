@@ -43,6 +43,10 @@ final class Telegram {
     private int nextList;
     private final Set<Long> resolvedChats = ConcurrentHashMap.newKeySet();
     volatile boolean standardBuild = false;
+    private final TelegramLogin.Startup loginStartup = new TelegramLogin.Startup();
+    volatile TelegramLogin.CodeDelivery codeDelivery;
+    volatile String emailCodeDescription = "Check your email for the verification code from Telegram.", passwordHint = "";
+    private volatile boolean editCredentialsAfterClose;
     Telegram(Context context) {
         this.context = context; secure = new SecureStore(context);
         io.execute(() -> { try { restoreCredentials(); } catch (Exception e) { stage = "credentials"; fail("This build could not load its Telegram configuration. Please reinstall a configured build."); } });
@@ -84,7 +88,7 @@ final class Telegram {
             Thread receiver = new Thread(this::receive, "tdlib-receiver"); receiver.setDaemon(true); receiver.start();
         }
         JSONObject state = request(Json.obj("@type", "getAuthorizationState"));
-        authQueue.execute(() -> { try { if (lastAuth.isEmpty()) authorization(state); } catch (Exception e) { fail(e.getMessage()); } });
+        authQueue.execute(() -> { try { if (loginStartup.acceptsSnapshot() || lastAuth.isEmpty()) authorization(state); } catch (Exception e) { authorizationFailed(state, e); } });
     }
     JSONObject request(JSONObject request) throws Exception {
         if (client == 0) throw new IllegalStateException("Connect to Telegram first.");
@@ -114,10 +118,7 @@ final class Telegram {
                     else result.complete(value);
                 } else if (Json.type(value).equals("updateAuthorizationState")) {
                     JSONObject auth = Json.child(value, "authorization_state");
-                    authQueue.execute(() -> { try { authorization(auth); } catch (Exception e) {
-                        if (Json.type(auth).equals("authorizationStateWaitTdlibParameters")) { stage = "credentials"; lastAuth = ""; }
-                        fail(e.getMessage());
-                    } });
+                    authQueue.execute(() -> { loginStartup.observeUpdate(); try { authorization(auth); } catch (Exception e) { authorizationFailed(auth, e); } });
                 } else if (Json.type(value).equals("updateFile")) {
                     JSONObject file = Json.child(value, "file"); files.put(file.optInt("id"), file);
                     if (Json.child(file, "local").optBoolean("is_downloading_completed")) downloads.remove(file.optInt("id"));
@@ -125,13 +126,21 @@ final class Telegram {
             } catch (Exception e) { fail("Telegram connection: " + e.getMessage()); }
         }
     }
+    private void authorizationFailed(JSONObject auth, Exception e) {
+        if (Json.type(auth).equals("authorizationStateWaitTdlibParameters")) {
+            loginStartup.parametersFailed(); lastAuth = ""; stage = "setupError";
+        }
+        fail("Telegram setup: " + e.getMessage());
+    }
     private volatile String lastAuth = "";
     private synchronized void authorization(JSONObject auth) throws Exception {
         String type = Json.type(auth);
-        if (type.equals(lastAuth)) return;
+        if (type.equals(lastAuth) && !type.equals("authorizationStateWaitCode") && !type.equals("authorizationStateWaitEmailCode")) return;
         lastAuth = type; error = "";
         switch (type) {
             case "authorizationStateWaitTdlibParameters": {
+                if (apiId == null || apiHash == null) { lastAuth = ""; stage = "credentials"; changed(); return; }
+                if (!loginStartup.beginParameters()) return;
                 stage = "loading"; changed();
                 String key = secure.get("database-key");
                 if (key == null) { byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes); key = Base64.encodeToString(bytes, Base64.NO_WRAP); secure.put("database-key", key); }
@@ -146,10 +155,10 @@ final class Telegram {
                 break;
             }
             case "authorizationStateWaitPhoneNumber": stage = "phone"; break;
-            case "authorizationStateWaitCode": stage = "code"; break;
-            case "authorizationStateWaitPassword": stage = "password"; break;
+            case "authorizationStateWaitCode": codeDelivery = new TelegramLogin.CodeDelivery(Json.child(auth, "code_info"), System.currentTimeMillis()); stage = "code"; break;
+            case "authorizationStateWaitPassword": passwordHint = auth.optString("password_hint"); stage = "password"; break;
             case "authorizationStateWaitEmailAddress": stage = "email"; break;
-            case "authorizationStateWaitEmailCode": stage = "emailCode"; break;
+            case "authorizationStateWaitEmailCode": emailCodeDescription = "Enter the verification code Telegram sent to " + Json.child(auth, "code_info").optString("email_address_pattern", "your email") + "."; stage = "emailCode"; break;
             case "authorizationStateReady": {
                 JSONObject me = request(Json.obj("@type", "getMe"));
                 long account = me.getLong("id");
@@ -164,11 +173,34 @@ final class Telegram {
                 generation++; stage = "loading"; library = null; files.clear(); downloads.clear(); windows.clear(); break;
             case "authorizationStateClosed":
                 // The modern TDLib client ID is no longer usable after close.
-                generation++; client = JsonClient.td_create_client_id(); lastAuth = "";
-                stage = "phone"; request(Json.obj("@type", "getAuthorizationState")); break;
+                generation++; client = JsonClient.td_create_client_id(); lastAuth = ""; loginStartup.reset(); codeDelivery = null; passwordHint = "";
+                if (editCredentialsAfterClose) { editCredentialsAfterClose = false; apiId = null; apiHash = null; error = ""; stage = "credentials"; }
+                else { stage = "loading"; request(Json.obj("@type", "getAuthorizationState")); }
+                break;
             default: stage = "unsupported"; error = "Telegram requires an unsupported sign-in step: " + type;
         }
         changed();
+    }
+    void changePhoneNumber() {
+        if (!Set.of("code", "password", "email", "emailCode").contains(stage)) return;
+        stage = "phone"; error = ""; changed();
+    }
+    void resendCode() throws Exception {
+        TelegramLogin.CodeDelivery delivery = codeDelivery;
+        if (!stage.equals("emailCode") && !(stage.equals("code") && delivery != null && delivery.canResend && delivery.secondsUntilResend(System.currentTimeMillis()) == 0))
+            throw new IllegalStateException("Telegram hasn’t offered another code yet. Check your other sessions or edit your number.");
+        request(Json.obj("@type", "resendAuthenticationCode"));
+    }
+    void retryConnection() throws Exception {
+        error = "";
+        if (client == 0) { restoreCredentials(); return; }
+        stage = "loading"; changed(); request(Json.obj("@type", "close"));
+    }
+    void editCredentials() throws Exception {
+        if (!standardBuild) return;
+        error = "";
+        if (client == 0) { stage = "credentials"; changed(); return; }
+        editCredentialsAfterClose = true; stage = "loading"; changed(); request(Json.obj("@type", "close"));
     }
     void authenticate(String value) throws Exception {
         JSONObject request = switch (stage) {

@@ -43,7 +43,7 @@ class ChannelUiTest {
         compose.waitForIdle()
     }
     @After fun cleanup() {
-        scenario.close(); telegram.stage = originalStage; telegram.library = originalLibrary
+        scenario.close(); telegram.stage = originalStage; telegram.library = originalLibrary; telegram.codeDelivery = null
         context.deleteDatabase("library_-95.db"); context.deleteDatabase("saved_-95.db")
         context.getSharedPreferences("cinespice", 0).edit().putString("cinespice.theme", previousTheme).commit()
     }
@@ -125,6 +125,16 @@ class ChannelUiTest {
         compose.onNodeWithText("India").performClick()
         compose.onAllNodesWithText("+91", substring = true).onFirst().assertIsDisplayed()
         compose.onNodeWithText("Phone number").performTextInput("2025550100")
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        scenario.onActivity {
+            telegram.codeDelivery = TelegramLogin.CodeDelivery(Json.obj("phone_number", "+912025550100", "type", Json.obj("@type", "authenticationCodeTypeTelegramMessage"), "next_type", Json.obj("@type", "authenticationCodeTypeSms"), "timeout", 30), System.currentTimeMillis())
+            telegram.stage = "code"; it.model.changed()
+        }
+        compose.onNodeWithText("Open Telegram on a device", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Resend code in", substring = true).assertIsNotEnabled()
+        compose.onNodeWithText("Back").performClick()
+        compose.onNodeWithText("Phone number").assertTextContains("2025550100")
+        compose.onAllNodesWithText("+91", substring = true).onFirst().assertIsDisplayed()
         scenario.onActivity { telegram.stage = "code"; it.model.changed() }
         compose.onNodeWithText("Telegram login code").performTextInput("12345")
         compose.onNodeWithText("Submit code").assertIsEnabled()
