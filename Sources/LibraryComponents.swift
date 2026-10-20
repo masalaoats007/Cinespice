@@ -336,7 +336,7 @@ struct PhoneNumberEntry: View {
         VStack(alignment: .leading, spacing: 16) {
             Button { choosing = true } label: {
                 HStack { Text(selected.name); Spacer(); Text(selected.dial); Image(systemName: "chevron.down") }
-                    .padding(16).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    .padding(16).foregroundStyle(.primary).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
             }.accessibilityLabel("Country: \(selected.name), \(selected.dial)")
             HStack {
                 if !number.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("+") && !number.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("00") {
@@ -344,7 +344,7 @@ struct PhoneNumberEntry: View {
                 }
                 TextField("Phone number", text: $number).keyboardType(.phonePad).textContentType(.telephoneNumber)
                     .textFieldStyle(.plain).padding(16)
-            }.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }.sheet(isPresented: $choosing) {
             NavigationView {
                 List(DialingCountry.all.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.dial.contains(search) }) { item in

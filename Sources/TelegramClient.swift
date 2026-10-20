@@ -17,6 +17,7 @@ final class TelegramClient: ObservableObject {
     @Published private(set) var profileName = ""
     @Published private(set) var profileUsername = ""
     let library: LibraryStore
+    private let databaseDirectory: URL
 
     private var clientID = td_create_client_id()
     private let receiver = DispatchQueue(label: "app.tevee.tdlib.receive", qos: .userInitiated)
@@ -107,7 +108,10 @@ final class TelegramClient: ObservableObject {
         catch { if token == videoSearchGeneration { videoSearchError = error.localizedDescription } }
     }
 
-    init(library: LibraryStore) { self.library = library }
+    init(library: LibraryStore, databaseDirectory: URL? = nil) {
+        self.library = library
+        self.databaseDirectory = databaseDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Tevee/TDLib", isDirectory: true)
+    }
 
     func restoreSession() {
         guard !restored else { return }; restored = true
@@ -140,24 +144,25 @@ final class TelegramClient: ObservableObject {
 
     private func refreshAuthorizationState() {
         let client = clientID
+        let revision = loginStartup.revision
         send(["@type": "getAuthorizationState"]) { [weak self] result in
             guard let self, self.clientID == client else { return }
             switch result {
             case .success(let state):
                 // Updates are authoritative; an older snapshot must not rewind login.
-                if !self.loginStartup.receivedUpdate { self.handle(state) }
+                if self.loginStartup.acceptsSnapshot(since: revision) { self.handle(state) }
             case .failure(let error):
-                if !self.loginStartup.receivedUpdate { self.stage = .error(error.localizedDescription) }
+                if self.loginStartup.acceptsSnapshot(since: revision) { self.stage = .error(error.localizedDescription) }
             }
         }
     }
 
-    func submitPhone(_ phone: String) { submitAuthentication(["@type": "setAuthenticationPhoneNumber", "phone_number": phone]) }
+    func submitPhone(_ phone: String) { submitAuthentication(["@type": "setAuthenticationPhoneNumber", "phone_number": phone], refreshState: true) }
     func submitCode(_ code: String) { submitAuthentication(["@type": "checkAuthenticationCode", "code": code]) }
     func submitPassword(_ password: String) { submitAuthentication(["@type": "checkAuthenticationPassword", "password": password]) }
     func submitEmail(_ email: String) { submitAuthentication(["@type": "setAuthenticationEmailAddress", "email_address": email]) }
     func submitEmailCode(_ code: String) { submitAuthentication(["@type": "checkAuthenticationEmailCode", "code": ["@type": "emailAddressAuthenticationCode", "code": code]]) }
-    private func submitAuthentication(_ request: [String: Any]) {
+    private func submitAuthentication(_ request: [String: Any], refreshState: Bool = false) {
         guard !isAuthenticating else { return }
         isAuthenticating = true; status = "Checking with Telegram…"
         let session = accountSession
@@ -166,7 +171,9 @@ final class TelegramClient: ObservableObject {
             guard let self, self.accountSession == session, self.authenticationRequest == token else { return }
             self.isAuthenticating = false
             switch result {
-            case .success: self.status = ""
+            case .success:
+                self.status = ""
+                if refreshState { self.refreshAuthorizationState() }
             case .failure(let error): self.status = error.localizedDescription
             }
         }
@@ -177,7 +184,7 @@ final class TelegramClient: ObservableObject {
     }
     func resendCode() {
         guard stage == .emailCode || (stage == .code && codeDelivery?.canResend == true && codeDelivery!.secondsUntilResend(at: Date()) == 0) else { return }
-        submitAuthentication(["@type": "resendAuthenticationCode"])
+        submitAuthentication(["@type": "resendAuthenticationCode"], refreshState: true)
     }
     func resetAuth() {
         guard !isAuthenticating else { return }
@@ -624,7 +631,7 @@ final class TelegramClient: ObservableObject {
     private func configure() {
         guard apiID > 0, loginStartup.beginParameters() else { return }
         let client = clientID
-        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Tevee/TDLib", isDirectory: true)
+        let root = databaseDirectory
         let files = root.appendingPathComponent("files", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: files, withIntermediateDirectories: true)

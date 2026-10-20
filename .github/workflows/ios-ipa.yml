@@ -72,7 +72,9 @@ jobs:
       - name: Generate project and resolve TDLib
         run: |
           xcodegen generate --spec project.yml
-          xcodebuild -resolvePackageDependencies -project Tevee.xcodeproj -scheme Tevee
+          xcodebuild -resolvePackageDependencies -project Tevee.xcodeproj -scheme Tevee -derivedDataPath build/DerivedData
+      - name: Check native Telegram login startup
+        run: python3 scripts/check-telegram-startup.py build/DerivedData/SourcePackages/artifacts
       - name: Install VLC
         run: |
           pod install --project-directory=.

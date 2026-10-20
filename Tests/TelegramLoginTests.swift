@@ -4,7 +4,7 @@ import XCTest
 final class TelegramLoginTests: XCTestCase {
     func testSnapshotAndStartupUpdateOnlySetParametersOnce() {
         var startup = TelegramLoginStartup()
-        XCTAssertFalse(startup.receivedUpdate)
+        XCTAssertTrue(startup.acceptsSnapshot(since: 0))
         XCTAssertTrue(startup.beginParameters()) // getAuthorizationState arrives first
         startup.observeUpdate()                 // initial TDLib update arrives second
         XCTAssertFalse(startup.beginParameters())
@@ -13,12 +13,23 @@ final class TelegramLoginTests: XCTestCase {
     func testUpdateBeforeSnapshotPreventsRewindingLogin() {
         var startup = TelegramLoginStartup()
         startup.observeUpdate()
-        XCTAssertTrue(startup.receivedUpdate) // ignore a stale wait-parameters snapshot
+        XCTAssertFalse(startup.acceptsSnapshot(since: 0)) // ignore a stale wait-parameters snapshot
         XCTAssertTrue(startup.beginParameters())
         startup.parametersFailed()
         XCTAssertTrue(startup.beginParameters()) // a failed attempt can be retried
         startup = TelegramLoginStartup()          // a new client must configure again
         XCTAssertTrue(startup.beginParameters())
+    }
+    func testNewStateQueryAfterAnUpdateIsAcceptedButOlderQueryCannotRewindIt() {
+        var startup = TelegramLoginStartup()
+        let initialQuery = startup.revision
+        startup.observeUpdate() // TDLib now waits for the phone number
+        XCTAssertFalse(startup.acceptsSnapshot(since: initialQuery))
+        let retryQuery = startup.revision
+        XCTAssertTrue(startup.acceptsSnapshot(since: retryQuery)) // reconnect with no new update
+        startup.observeUpdate() // a code/password update arrives during the query
+        XCTAssertFalse(startup.acceptsSnapshot(since: retryQuery))
+        XCTAssertTrue(startup.acceptsSnapshot(since: startup.revision))
     }
     func testPastedInternationalNumberDoesNotDuplicateCountryCode() {
         XCTAssertEqual(TelegramPhoneNumber.international("  +91 98765-43210 ", dial: "+91"), "+919876543210")

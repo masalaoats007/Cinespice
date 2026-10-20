@@ -5,15 +5,17 @@ import org.json.JSONObject;
 /** Login state and input rules, independent of the native TDLib transport. */
 final class TelegramLogin {
     static final class Startup {
-        private boolean receivedUpdate, submittedParameters;
-        synchronized void observeUpdate() { receivedUpdate = true; }
-        synchronized boolean acceptsSnapshot() { return !receivedUpdate; }
+        private int revision;
+        private boolean submittedParameters;
+        synchronized void observeUpdate() { revision++; }
+        synchronized int revision() { return revision; }
+        synchronized boolean acceptsSnapshot(int since) { return revision == since; }
         synchronized boolean beginParameters() {
             if (submittedParameters) return false;
             submittedParameters = true; return true;
         }
         synchronized void parametersFailed() { submittedParameters = false; }
-        synchronized void reset() { receivedUpdate = false; submittedParameters = false; }
+        synchronized void reset() { revision = 0; submittedParameters = false; }
     }
     static String internationalPhone(String input, String dial) {
         String text = input.trim(), digits = text.replaceAll("[^0-9]", "");

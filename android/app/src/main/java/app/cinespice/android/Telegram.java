@@ -87,11 +87,15 @@ final class Telegram {
             client = JsonClient.td_create_client_id();
             Thread receiver = new Thread(this::receive, "tdlib-receiver"); receiver.setDaemon(true); receiver.start();
         }
+        refreshAuthorizationState();
+    }
+    private void refreshAuthorizationState() throws Exception {
         int activeClient = client;
+        int revision = loginStartup.revision();
         JSONObject state = request(Json.obj("@type", "getAuthorizationState"));
         authQueue.execute(() -> {
             if (client != activeClient) return;
-            try { if (loginStartup.acceptsSnapshot() || lastAuth.isEmpty()) authorization(state); }
+            try { if (loginStartup.acceptsSnapshot(revision)) authorization(state); }
             catch (Exception e) { authorizationFailed(state, e); }
         });
     }
@@ -145,7 +149,7 @@ final class Telegram {
     private volatile String lastAuth = "";
     private synchronized void authorization(JSONObject auth) throws Exception {
         String type = Json.type(auth);
-        if (type.equals(lastAuth) && !type.equals("authorizationStateWaitCode") && !type.equals("authorizationStateWaitEmailCode")) return;
+        if (type.equals(lastAuth) && !Set.of("authorizationStateWaitPhoneNumber", "authorizationStateWaitCode", "authorizationStateWaitPassword", "authorizationStateWaitEmailAddress", "authorizationStateWaitEmailCode").contains(type)) return;
         lastAuth = type; error = "";
         switch (type) {
             case "authorizationStateWaitTdlibParameters": {
@@ -200,6 +204,7 @@ final class Telegram {
         if (!stage.equals("emailCode") && !(stage.equals("code") && delivery != null && delivery.canResend && delivery.secondsUntilResend(System.currentTimeMillis()) == 0))
             throw new IllegalStateException("Telegram hasn’t offered another code yet. Check your other sessions or edit your number.");
         request(Json.obj("@type", "resendAuthenticationCode"));
+        refreshAuthorizationState();
     }
     void retryConnection() throws Exception {
         error = "";
@@ -213,7 +218,8 @@ final class Telegram {
         editCredentialsAfterClose = true; stage = "loading"; changed(); request(Json.obj("@type", "close"));
     }
     void authenticate(String value) throws Exception {
-        JSONObject request = switch (stage) {
+        String submittedStage = stage;
+        JSONObject request = switch (submittedStage) {
             case "phone" -> Json.obj("@type", "setAuthenticationPhoneNumber", "phone_number", value);
             case "code" -> Json.obj("@type", "checkAuthenticationCode", "code", value);
             case "password" -> Json.obj("@type", "checkAuthenticationPassword", "password", value);
@@ -222,6 +228,7 @@ final class Telegram {
             default -> throw new IllegalStateException("Wait for Telegram to finish connecting.");
         };
         request(request);
+        if (submittedStage.equals("phone")) refreshAuthorizationState();
     }
     void check(long session) throws InterruptedException {
         if (generation != session || !stage.equals("ready") || Thread.currentThread().isInterrupted()) throw new InterruptedException("Session changed or operation cancelled");

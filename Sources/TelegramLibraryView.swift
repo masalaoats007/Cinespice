@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TelegramLibraryView: View {
     @AppStorage("cinespice.theme") private var theme: CinespiceTheme = .ember
@@ -592,15 +593,15 @@ struct TelegramLibraryView: View {
     }
     private func authInput<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content().textFieldStyle(.plain).padding(16).frame(minHeight: 56)
-            .background(theme.surface, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(theme.muted.opacity(0.2), lineWidth: 1))
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5))
             .disabled(telegram.isAuthenticating)
     }
     private func authButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) { if telegram.isAuthenticating { ProgressView() }; Text(telegram.isAuthenticating ? "Please wait…" : title).font(.headline) }
                 .frame(maxWidth: .infinity, minHeight: 40)
-        }.buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle(radius: 16)).tint(theme.accent).disabled(telegram.isAuthenticating)
+        }.buttonStyle(.borderedProminent).controlSize(.large).buttonBorderShape(.roundedRectangle(radius: 12)).tint(theme.accent).disabled(telegram.isAuthenticating)
     }
     private var canGoBackInLogin: Bool {
         [.code, .password, .email, .emailCode].contains(telegram.stage) || (telegram.stage == .phone && TelegramBuild.isStandard)
@@ -612,12 +613,8 @@ struct TelegramLibraryView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "film").font(.title3)
-                        Text("CINESPICE").font(.system(size: 16, weight: .black, design: .rounded)).tracking(3)
-                    }.foregroundStyle(theme.accent).padding(.bottom, 8)
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(title).font(.system(size: 30, weight: .bold, design: .rounded)).tracking(-0.6)
+                        Text(title).font(.largeTitle.bold())
                         Text(subtitle).font(.subheadline).foregroundStyle(theme.muted).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                     }
                     VStack(alignment: .leading, spacing: 16) { content() }
@@ -625,9 +622,9 @@ struct TelegramLibraryView: View {
                     if !telegram.status.isEmpty {
                         Label(telegram.status, systemImage: "info.circle").font(.footnote).foregroundStyle(theme.accent)
                     }
-                    Label("Your session stays on this device.", systemImage: "lock.shield").font(.footnote).foregroundStyle(theme.muted).padding(.top, 8)
+                    Text("Your Telegram session stays on this iPhone.").font(.footnote).foregroundStyle(.secondary).padding(.top, 8)
                 }.padding(24).frame(maxWidth: 440).frame(maxWidth: .infinity)
-            }.background(theme.background).navigationBarTitleDisplayMode(.inline).toolbar {
+            }.background(Color(uiColor: .systemGroupedBackground)).navigationTitle("Cinespice").navigationBarTitleDisplayMode(.inline).toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if canGoBackInLogin { Button(action: goBackInLogin) { Label("Back", systemImage: "chevron.left").frame(minHeight: 44) }.disabled(telegram.isAuthenticating) }
                 }

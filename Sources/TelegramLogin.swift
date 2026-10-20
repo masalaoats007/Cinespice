@@ -2,9 +2,10 @@ import Foundation
 
 /// A TDLib state snapshot can arrive after a newer authorization update.
 struct TelegramLoginStartup {
-    private(set) var receivedUpdate = false
+    private(set) var revision = 0
     private(set) var submittedParameters = false
-    mutating func observeUpdate() { receivedUpdate = true }
+    mutating func observeUpdate() { revision += 1 }
+    func acceptsSnapshot(since revision: Int) -> Bool { self.revision == revision }
     mutating func beginParameters() -> Bool {
         guard !submittedParameters else { return false }
         submittedParameters = true

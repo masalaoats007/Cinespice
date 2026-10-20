@@ -458,10 +458,7 @@ private data class DialingCountry(val id: String, val name: String, val dial: St
     }
     Column(Modifier.widthIn(max = 440.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         if (canGoBack) TextButton(onClick = ::goBack, enabled = !model.busy, contentPadding = PaddingValues(0.dp)) { Icon(Icons.Default.ArrowBack, null); Spacer(Modifier.width(8.dp)); Text("Back") }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(CineIcons.VideoLibrary, null, tint = MaterialTheme.colorScheme.primary)
-            Text("CINESPICE", fontSize = 16.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-        }
+        Text("CINESPICE", fontSize = 16.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(when (model.stage) { "phone" -> "Your phone number"; "code" -> "Enter your code"; "emailCode" -> "Check your email"; "password" -> "Your cloud password"; "email" -> "Your sign-in email"; "setupError", "unsupported" -> "Let’s reconnect"; "loading" -> "Connecting securely"; else -> "Connect Telegram" }, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
             Text(when(model.stage) {

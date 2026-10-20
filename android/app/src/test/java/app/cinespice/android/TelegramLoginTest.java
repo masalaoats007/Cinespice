@@ -6,22 +6,33 @@ import static org.junit.Assert.*;
 public class TelegramLoginTest {
     @Test public void snapshotThenUpdateCannotConfigureTwice() {
         TelegramLogin.Startup startup = new TelegramLogin.Startup();
-        assertTrue(startup.acceptsSnapshot());
+        assertTrue(startup.acceptsSnapshot(0));
         assertTrue(startup.beginParameters());
         startup.observeUpdate();
-        assertFalse(startup.acceptsSnapshot());
+        assertFalse(startup.acceptsSnapshot(0));
         assertFalse(startup.beginParameters());
     }
     @Test public void newerUpdateWinsAndFailedSetupCanRetry() {
         TelegramLogin.Startup startup = new TelegramLogin.Startup();
         startup.observeUpdate();
-        assertFalse(startup.acceptsSnapshot());
+        assertFalse(startup.acceptsSnapshot(0));
         assertTrue(startup.beginParameters());
         startup.parametersFailed();
         assertTrue(startup.beginParameters());
         startup.reset();
-        assertTrue(startup.acceptsSnapshot());
+        assertTrue(startup.acceptsSnapshot(0));
         assertTrue(startup.beginParameters());
+    }
+    @Test public void freshStateQueryAfterUpdateIsAcceptedAndOldQueryIsRejected() {
+        TelegramLogin.Startup startup = new TelegramLogin.Startup();
+        int initialQuery = startup.revision();
+        startup.observeUpdate();
+        assertFalse(startup.acceptsSnapshot(initialQuery));
+        int retryQuery = startup.revision();
+        assertTrue(startup.acceptsSnapshot(retryQuery));
+        startup.observeUpdate();
+        assertFalse(startup.acceptsSnapshot(retryQuery));
+        assertTrue(startup.acceptsSnapshot(startup.revision()));
     }
     @Test public void pastedInternationalNumberDoesNotDuplicateDialCode() {
         assertEquals("+919876543210", TelegramLogin.internationalPhone("  +91 98765-43210 ", "+91"));
