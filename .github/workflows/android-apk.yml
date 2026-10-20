@@ -44,7 +44,17 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
       - name: Install SDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            # A truncated NDK ZIP must not be reused by the next attempt.
+            rm -rf "${ANDROID_HOME:?}/.temp"
+            sleep 5
+          done
       - name: Fetch pinned TDLib binaries
         run: ./prepare-tdlib.sh
       - name: Test, lint, and build installable APKs
