@@ -13,10 +13,10 @@ surfaces for the compact top bar, navigation bar, menus and sheets, with subtle
 Use 16–24dp content margins, 16–18dp poster/hero corner radii, and 48dp minimum
 touch targets. Honor status/navigation bars, display cutouts and font scaling.
 
-- Compact top app bar: CINESPICE (refresh), Channels icon, Profile icon; collection
-  screens add Back. Keep one channel selector and one search destination.
-- Bottom navigation: Home, Favorites, Search, Downloads, History. Use a navigation
-  rail on larger windows if space requires it, retaining identical destinations.
+- Compact top app bar: CINESPICE (refresh), Favorites/Watchlist, Channels and Profile.
+  Channel screens show Back, channel name, channel sorting and scoped search.
+- Bottom navigation: Home, Search, Downloads. Use a navigation rail on larger
+  windows; hide both forms of global navigation inside a channel.
 - Adaptive poster grid: about 140dp minimum card width, 16dp gaps, centered content
   capped around 1200dp. Continue Watching uses a horizontal landscape-card rail.
 - Seven-position `HorizontalPager`, dots and accessible page descriptions. No
@@ -35,24 +35,21 @@ active screen. Keep account/library/history in durable local storage.
 Only Channels opens source selection. Display owner-first channels/groups with a selection control
 and separate browse arrow on selected rows. Discover gradually;
 loading source metadata must not trigger downloads from every channel. Closing
-the picker loads one initial page for each selected source. Home shows one
-horizontal rail of selected-source cards, without a separate My channels page,
-global library grid or per-channel video shelves. Tapping a card opens that
-channel's collection page, where search is scoped to that channel and sorting
-matches the shared library choice. Search remains universal across selected
+the picker loads one initial page for each selected source. Home shows a row of
+up to ten files for each selected channel. The channel name/arrow opens its
+page, with channel-scoped search and a persisted account/channel sort preference
+that also controls the home row. Search remains universal across selected
 sources.
 
-Favorites has Favorites/Watchlist segmented tabs. Card overflow exposes save/remove,
+Favorites has Favorites/Watchlist segmented tabs. Long press a file to access save/remove,
 play/resume, start over, download/cancel, export and history actions. Use scoped
 message IDs and an account-specific Room database; list membership is independent
 of caches and watch history. Deselecting a source hides, not deletes, saved items.
 
 Search is universal across all selected sources and starts empty. Debounce remote work, query only selected sources, merge by
 message ID and retain server paging cursors. Show pending/error/retry feedback.
-Home contains a single horizontal rail of selected channel cards, with no global
-library grid or repeated per-channel video rails. Tapping a card opens that
-channel's collection page. Its search field is scoped to that channel and shares
-the library sort control. The Search tab continues to search all selected sources.
+Channel pages show 30 loaded files at a time with page numbers and previous/next
+buttons. Load more indexes additional files and exposes more page numbers. The Search tab continues to search all selected sources.
 The Channels picker searches saved metadata as the user types, then merges
 matching Telegram server and local chat results; it must filter to groups/channels
 before limiting visible matches. Show search progress and errors inside the picker.
@@ -66,7 +63,9 @@ as a full download. Export via Android Storage Access Framework using the origin
 filename. Do not claim iOS background-transfer behavior applies to Android;
 design Android lifecycle/foreground-service requirements separately.
 
-History shows five most recent watched videos; retain older resume positions.
+Continue Watching shows up to five resumable files; older resume positions remain stored.
+Cards share Play and Info buttons. Details show Back and saved-list controls,
+with an optional user-triggered Wikidata lookup for suggested descriptions.
 Profile holds real account identity, palette, storage cleanup, sign-out, the
 creator's social links and a visibly unavailable Request feature placeholder.
 

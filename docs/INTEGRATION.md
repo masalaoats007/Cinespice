@@ -106,7 +106,7 @@ The loopback bridge is selected for its known-length HTTP interface and smallest
 
 Tevee targets iOS 15 and Swift 5 language mode with SwiftUI, Network, TDLibFramework and MobileVLCKit. Existing commit `55fe388` built with Xcode 16.4 / iOS 18.5 SDK on macos-15. That result does not validate subsequent changes. Keep iOS 16-only UI/concurrency calls guarded or use iOS 15 equivalents.
 
-TDLib is Boost Software License 1.0; the Swiftgram framework packaging is MIT. VLCKit source headers specify LGPL 2.1 or later and its `COPYING` contains LGPL 2.1; bundled libVLC, codecs and third-party notices also need retention/review if distributing. Telegram-iOS's inspected tree has no top-level LICENSE file; its README explicitly asks derivatives to publish source to comply with its licenses. No license permission is inferred for copying its player. Reuse the architecture through TDLib APIs, not Telegram source. Personal use is the deployment scope; it does not change third-party license texts.
+TDLib is Boost Software License 1.0; the Swiftgram framework packaging is MIT. VLCKit source headers specify LGPL 2.1 or later and its `COPYING` contains LGPL 2.1; bundled libVLC, codecs and third-party notices also need retention/review if distributing. Telegram-iOS's inspected tree has no top-level LICENSE file; its README explicitly asks derivatives to publish source to comply with its licenses. No license permission is inferred for copying its player. Reuse the architecture through TDLib APIs, not Telegram source. Commercial distribution is now intended; this does not change third-party license texts or verify distribution compliance. See BUILD-EDITIONS.md for production signing requirements.
 
 ## Milestone status
 

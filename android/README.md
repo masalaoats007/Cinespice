@@ -12,11 +12,12 @@ or **Cinespice-Android-x86_64** for an emulator. Extract the artifact ZIP and
 install its `app-<architecture>-optimized.apk`.
 These are separate complete APKs; install only the one matching your device.
 Allow your browser/file manager to install unknown apps when Android prompts.
-Open Cinespice, enter your own API ID/hash from https://my.telegram.org, and sign
-in with your Telegram phone/code/password or requested email verification.
+Open the configured edition, select your country, and sign in with your Telegram
+phone/code/cloud password or requested email verification. The standard edition
+first asks for your API ID/hash from https://my.telegram.org.
 Open **Channels** in the header to choose channels/groups. Tap a selected source's
-browse arrow to load its collection, then tap a poster to play. Credentials are entered on-device; never put them in Git or send
-login codes to another person.
+browse arrow to load its collection, then tap a poster to play. Configured editions inject app credentials during the build; account login happens
+on-device. Never put credentials in Git or share login codes.
 
 The current build uses Android's **debug signing certificate** and is directly
 installable; it is not a Play Store release. Subsequent builds must use the same

@@ -34,7 +34,7 @@ final class Telegram {
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
     private volatile int client;
     private volatile String apiId, apiHash;
-    volatile String stage = "credentials", error = "";
+    volatile String stage = "loading", error = "";
     volatile String displayName = "", username = "";
     volatile Library library;
     volatile long generation;
@@ -45,7 +45,7 @@ final class Telegram {
     volatile boolean standardBuild = false;
     Telegram(Context context) {
         this.context = context; secure = new SecureStore(context);
-        io.execute(() -> { try { restoreCredentials(); } catch (Exception e) { fail("This build could not load its Telegram configuration. Please reinstall a configured build."); } });
+        io.execute(() -> { try { restoreCredentials(); } catch (Exception e) { stage = "credentials"; fail("This build could not load its Telegram configuration. Please reinstall a configured build."); } });
     }
     void restoreCredentials() throws Exception {
         JSONObject build;
@@ -66,7 +66,7 @@ final class Telegram {
             if (saved != null) {
                 JSONObject data = new JSONObject(saved);
                 connect(data.getString("id"), data.getString("hash"));
-            } else changed();
+            } else { stage = "credentials"; changed(); }
         }
     }
     void listen(Listener listener) { listeners.add(listener); }
