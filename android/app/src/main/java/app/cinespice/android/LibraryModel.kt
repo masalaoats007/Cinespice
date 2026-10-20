@@ -23,6 +23,9 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
     var savedList by mutableStateOf(saved.get<String>("savedList") ?: "Favorites"); private set
     var palette by mutableStateOf(preferences.getString("cinespice.theme", "Ember")!!); private set
     var sort by mutableIntStateOf(preferences.getInt("sort", 0)); private set
+    var collectionPageNumber by mutableIntStateOf(0)
+    var collectionSearchVisible by mutableStateOf(false)
+    private var channelSortRevision by mutableIntStateOf(0)
     var channelsVisible by mutableStateOf(false); private set
     var status by mutableStateOf(""); private set
     var busy by mutableStateOf(false); private set
@@ -89,7 +92,7 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         if (stage != "ready") return
         val library = telegram.requireLibrary()
         channels = library.chats(false); videos = library.videos(0, "", false, 10000)
-        history = library.recentHistory(5); continuing = library.videos(0, "", true, 12)
+        history = library.recentHistory(5); continuing = library.videos(0, "", true, 5)
         favorites = store?.entries()?.members("Favorites")?.toSet() ?: emptySet()
         watchlist = store?.entries()?.members("Watchlist")?.toSet() ?: emptySet()
         downloadStates = store?.entries()?.downloads()?.associate { it.id to it.state } ?: emptyMap()
@@ -117,6 +120,7 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         if (destination == "collection" && collectionQuery.isNotBlank() && collectionSession == null) searchCollection(collectionQuery)
     }
     internal fun browse(source: Library.Chat) {
+        collectionPageNumber = 0; collectionSearchVisible = false
         closeChannels(false); chat = source.id(); chatTitle = source.title()
         collectionQuery = ""; saved["collectionQuery"] = ""; collectionSearchResults = emptyList(); collectionSearchMore = true
         collectionSearchError = ""; collectionSession = null; collectionQueryEpoch++; collectionQueryJob?.cancel(); collectionSearching = false
@@ -126,7 +130,17 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
     }
     fun setList(value: String) { savedList = value; saved["savedList"] = value }
     fun theme(value: String) { palette = value; preferences.edit().putString("cinespice.theme", value).apply() }
-    fun order(value: Int) { sort = value; preferences.edit().putInt("sort", value).apply() }
+    fun order(value: Int) {
+        if (page == "collection") {
+            preferences.edit().putInt("sort.$account.$chat", value).apply()
+            channelSortRevision++; collectionPageNumber = 0
+        } else { sort = value; preferences.edit().putInt("sort", value).apply() }
+    }
+    internal fun channelOrder(id: Long): Int {
+        channelSortRevision // Compose tracks preference edits through this revision.
+        return preferences.getInt("sort.$account.$id", 0).coerceIn(VideoSort.LABELS.indices)
+    }
+    internal fun sortedChannel(input: List<Video>, id: Long) = VideoSort.sorted(input, channelOrder(id))
     internal fun sorted(input: List<Video>) = VideoSort.sorted(input, sort)
     internal fun toggle(video: Video, list: String) {
         val library = telegram.requireLibrary(); library.save(video)
@@ -234,6 +248,7 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         }
     }
     fun searchCollection(value: String) {
+        collectionPageNumber = 0
         collectionQuery = value; saved["collectionQuery"] = value; collectionSession = null; collectionQueryEpoch++
         val token = collectionQueryEpoch; collectionQueryJob?.cancel(); collectionSearchResults = emptyList()
         collectionSearching = value.isNotBlank(); collectionSearchMore = true; collectionSearchError = ""

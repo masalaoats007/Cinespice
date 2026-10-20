@@ -119,7 +119,7 @@ TDLib is Boost Software License 1.0; the Swiftgram framework packaging is MIT. V
 | 7: reliability | 24 core tests passed; account/session guards, bounded caches and lifecycle handling implemented; device/scale checks outstanding |
 | 8: build/install | Previous commit has a successful unsigned IPA; current patch requires a new macOS build and signing |
 
-Do not enter Telegram codes, API hashes, database keys or session files in repository fixtures, CI, task chat or logs. Enter credentials only in the installed app. Synthetic fixtures are permitted only in tests and must be identified as such.
+Never put Telegram login codes, database keys, session files or cloud passwords in repository fixtures, CI, task chat or logs. Configured editions may inject the application API ID/hash from private CI secrets into ignored build resources; standard editions accept them on-device. See BUILD-EDITIONS.md. Synthetic fixtures are permitted in tests and must be identified as such.
 
 ## Real-iPhone verification protocol
 

@@ -1,15 +1,25 @@
 name: Build Cinespice Android APK
 on:
   workflow_dispatch:
+    inputs:
+      edition:
+        description: Edition to build
+        type: choice
+        options: [both, configured, standard]
+        default: both
   push:
-    branches: [android, 'coderabbit/android-app-build/**']
-    paths: ['android/**', '.github/workflows/android-apk.yml']
+    branches: [IOS, android, 'coderabbit/android-app-build/**', 'coderabbit/configure-api-credential-builds/**']
+    paths: ['android/**', '.github/workflows/android-apk.yml', 'scripts/configure-telegram.py']
   pull_request:
-    paths: ['android/**', '.github/workflows/android-apk.yml']
+    paths: ['android/**', '.github/workflows/android-apk.yml', 'scripts/configure-telegram.py']
 permissions:
   contents: read
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: ${{ fromJSON((github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/coderabbit/')) || inputs.edition == 'standard') && '["standard"]' || inputs.edition == 'configured' && '["configured"]' || '["standard","configured"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -17,6 +27,13 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@v5
+      - name: Test build configuration isolation
+        run: python3 ../scripts/test_build_configuration.py
+      - name: Generate Telegram build configuration
+        env:
+          TELEGRAM_API_ID: ${{ github.event_name != 'pull_request' && matrix.edition == 'configured' && secrets.TELEGRAM_API_ID || '' }}
+          TELEGRAM_API_HASH: ${{ github.event_name != 'pull_request' && matrix.edition == 'configured' && secrets.TELEGRAM_API_HASH || '' }}
+        run: python3 ../scripts/configure-telegram.py --platform android --mode "${{ matrix.edition }}"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -34,26 +51,26 @@ jobs:
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintOptimized :app:assembleOptimized
       - uses: actions/upload-artifact@v4
         with:
-          name: Cinespice-Android-arm64-v8a
+          name: Cinespice-${{ matrix.edition }}-Android-arm64-v8a
           path: android/app/build/outputs/apk/optimized/app-arm64-v8a-optimized.apk
           if-no-files-found: error
           compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
-          name: Cinespice-Android-armeabi-v7a
+          name: Cinespice-${{ matrix.edition }}-Android-armeabi-v7a
           path: android/app/build/outputs/apk/optimized/app-armeabi-v7a-optimized.apk
           if-no-files-found: error
           compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
-          name: Cinespice-Android-x86_64
+          name: Cinespice-${{ matrix.edition }}-Android-x86_64
           path: android/app/build/outputs/apk/optimized/app-x86_64-optimized.apk
           if-no-files-found: error
           compression-level: 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Cinespice-Android-diagnostics
+          name: Cinespice-${{ matrix.edition }}-Android-diagnostics
           path: |
             android/app/build/reports/
             android/app/build/outputs/mapping/optimized/

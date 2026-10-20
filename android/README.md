@@ -156,3 +156,7 @@ Automated UI checks use the debug variant (`:app:connectedDebugAndroidTest`);
 optimized native/playback checks can use `-PdeviceTestBuildType=optimized`.
 Physical tablet/foldable/cutout/TalkBack coverage and live Telegram streaming
 remain device acceptance work; emulator results do not establish those behaviors.
+
+## Build editions
+
+Before Gradle, generate the ignored build configuration as described in [Build editions](../docs/BUILD-EDITIONS.md). The configured edition opens phone login directly; standard asks for API credentials. CI artifact names now include `configured` or `standard`.

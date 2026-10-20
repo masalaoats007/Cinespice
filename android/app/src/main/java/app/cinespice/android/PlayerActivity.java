@@ -30,7 +30,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     private TextView message, time, remaining, speedLabel, pictureLabel;
     private ProgressBar spinner;
     private SeekBar seek;
-    private Button play, unlock;
+    private Button play, unlock, downloadFallback;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private volatile boolean released;
     private boolean locked, dragging, positioned, resumeApplied, playbackError, resumeAfterPause, foreground, landscape, edges;
@@ -99,6 +99,8 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         LinearLayout status = Ui.row(this); status.setPadding(0, 0, 0, Ui.dp(this, 2));
         spinner = new ProgressBar(this); spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT)); status.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
         message = Ui.text(this, "Opening media…", 11, Ui.ACCENT); message.setPadding(Ui.dp(this, 7), 0, 0, 0); status.addView(message, new LinearLayout.LayoutParams(0, -2, 1)); bottom.addView(status);
+        downloadFallback = Ui.primary(this, "Download to try local playback", this::downloadAndClose);
+        downloadFallback.setVisibility(View.GONE); bottom.addView(downloadFallback);
         LinearLayout timeline = Ui.row(this); time = Ui.text(this, "0:00", 11, 0xFFEAE6E3); time.setTypeface(android.graphics.Typeface.MONOSPACE); time.setPadding(0, 0, Ui.dp(this, 8), 0); timeline.addView(time);
         seek = new SeekBar(this); seek.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT)); seek.setThumbTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT)); seek.setMax(1000); seek.setContentDescription("Video timeline"); timeline.addView(seek, new LinearLayout.LayoutParams(0, Ui.dp(this, 34), 1));
         remaining = Ui.text(this, "−0:00", 11, 0xFFEAE6E3); remaining.setTypeface(android.graphics.Typeface.MONOSPACE); remaining.setGravity(Gravity.RIGHT); remaining.setPadding(Ui.dp(this, 8), 0, 0, 0); timeline.addView(remaining); bottom.addView(timeline);
@@ -117,12 +119,10 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         menu.addView(playerTool("CC", "Tracks", "Audio and subtitles", () -> tracks(true)), equalTool());
         LinearLayout pictureTool = playerTool("▣", "Fit", "Picture options", this::picture); pictureLabel = (TextView) pictureTool.getChildAt(1); menu.addView(pictureTool, equalTool());
         menu.addView(playerTool("↻", "Rotate", "Rotate screen", () -> { landscape = !landscape; setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); reveal(); }), equalTool());
-        menu.addView(playerTool("•••", "More", "More options", () -> options("More", new String[]{"Audio tracks", "Subtitles", "Download first"}, -1, index -> {
+        menu.addView(playerTool("•••", "More", "More options", () -> options("More", new String[]{"Audio tracks", "Subtitles", "Download"}, -1, index -> {
             if (index == 0) { tracks(false); return; }
             if (index == 1) { tracks(true); return; }
-            if (player != null) player.pause();
-            if (bridge != null) { bridge.close(); bridge = null; }
-            telegram.io.execute(() -> { try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the video after download completes.", Toast.LENGTH_LONG).show(); finish(); }); } catch (Exception e) { runOnUiThread(() -> message.setText(e.getMessage())); } });
+            downloadAndClose();
         })), equalTool());
         controls.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
         unlock = Ui.primary(this, "Unlock", () -> { locked = false; unlock.setVisibility(View.GONE); reveal(); }); unlock.setVisibility(View.GONE);
@@ -179,7 +179,17 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     }
     private void showPlaybackError() {
         spinner.setVisibility(View.GONE); positioned = true; playbackError = true;
-        message.setText("VLC could not play this file. Close and try Download first."); controls.setVisibility(View.VISIBLE); handler.removeCallbacks(hide);
+        message.setText("VLC could not play this file.");
+        downloadFallback.setVisibility(telegram.completedPath(video).isEmpty() ? View.VISIBLE : View.GONE); controls.setVisibility(View.VISIBLE); handler.removeCallbacks(hide);
+    }
+    private void downloadAndClose() {
+        if (player != null) player.pause();
+        if (bridge != null) { bridge.close(); bridge = null; }
+        downloadFallback.setEnabled(false);
+        telegram.io.execute(() -> {
+            try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the file after download completes.", Toast.LENGTH_LONG).show(); finish(); }); }
+            catch (Exception e) { runOnUiThread(() -> { message.setText(e.getMessage()); downloadFallback.setEnabled(true); }); }
+        });
     }
     private void reveal() { if (locked) return; controls.setVisibility(View.VISIBLE); handler.removeCallbacks(hide); handler.postDelayed(hide, 4500); }
     private void skip(long delta) { if (player != null && player.isSeekable()) { player.setTime(Math.max(0, Math.min(player.getLength(), player.getTime() + delta))); reveal(); } }

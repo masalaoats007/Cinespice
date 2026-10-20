@@ -220,3 +220,7 @@ player ideas are recorded in [nextupdare.md](nextupdare.md) for later discussion
 Review notices and obligations for TDLibFramework/TDLib and MobileVLCKit. Telegram,
 VLC-iOS, TeleSpeed and Nuvio source checkouts were inspected as references; their
 full applications or plugin systems are not copied into Cinespice.
+
+## Build editions and updated library
+
+See [Build editions](docs/BUILD-EDITIONS.md) for the configured edition (phone login without API entry), standard edition, one-time GitHub secret setup, channel pagination and optional Wikidata lookup. Generate the build resource before XcodeGen/Gradle.

@@ -94,6 +94,7 @@ struct VideoCard: View {
     let play: (Bool) -> Void
     let download: () -> Void
     let export: () -> Void
+    let info: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -139,7 +140,14 @@ struct VideoCard: View {
                     Text(library.snapshot.collections.first(where: { $0.id == video.chatID })?.title ?? "Telegram")
                         .font(.system(size: 10)).foregroundStyle(theme.muted).lineLimit(1)
                 }
-                Menu {
+            }
+            HStack(spacing: 8) {
+                Button { play(true) } label: { Image(systemName: "play.fill").frame(width: 44, height: 44).background(theme.accent.opacity(0.18), in: Circle()) }.accessibilityLabel("Play \(video.title)")
+                Button(action: info) { Image(systemName: "info.circle").frame(width: 44, height: 44) }.accessibilityLabel("Info for \(video.title)")
+                Spacer(minLength: 0)
+            }
+        }.foregroundStyle(theme.text).contextMenu {
+
                     ForEach(["Favorites", "Watchlist"], id: \.self) { list in
                         Button {
                             guard !savingList else { return }; savingList = true
@@ -156,17 +164,14 @@ struct VideoCard: View {
                     Button("Play from beginning") { play(false) }
                     if telegram.fullDownloads.contains(video.fileID) {
                         Button("Cancel download") { Task { await telegram.cancelDownload(video) } }.disabled(telegram.cancellingDownloads.contains(video.fileID))
-                    } else { Button("Download first") { download() }.disabled(telegram.preparingDownloads.contains(video.id)) }
+                    } else { Button("Download") { download() }.disabled(telegram.preparingDownloads.contains(video.id)) }
                     if library.display(video).isDownloaded { Button("Save to Files…", action: export) }
                     Button("Mark watched") { updateHistory(remove: false) }.disabled(savingHistory)
                     if library.snapshot.history[video.id] != nil {
                         Button("Remove from watch history") { updateHistory(remove: true) }.disabled(savingHistory)
                     }
-                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
-                .buttonStyle(CinespiceButtonStyle())
-                .accessibilityLabel("Options for \(video.title)")
-            }
-        }.foregroundStyle(theme.text)
+            Button("File info", action: info)
+        }
     }
     private func updateHistory(remove: Bool) {
         guard !savingHistory else { return }; savingHistory = true
@@ -197,6 +202,8 @@ struct VideoDetailsView: View {
     @AppStorage("cinespice.theme") private var theme: CinespiceTheme = .ember
     @Environment(\.dismiss) private var dismiss
     let video: TelegramVideo
+    @EnvironmentObject private var library: LibraryStore
+    @State private var saving = false
     var body: some View {
         NavigationView {
             ScrollView {
@@ -206,10 +213,21 @@ struct VideoDetailsView: View {
                     HStack { Text(video.formatLabel); Text("·"); Text(ByteCountFormatter.string(fromByteCount: video.size, countStyle: .file)) }.font(.subheadline).foregroundStyle(theme.muted)
                     if video.date > 0 { Text(Date(timeIntervalSince1970: Double(video.date)), style: .date).font(.caption).foregroundStyle(theme.muted) }
                     if let caption = video.caption { Text(caption).font(.body).textSelection(.enabled) }
+                    HStack {
+                        ForEach(["Favorites", "Watchlist"], id: \.self) { list in
+                            let saved = library.snapshot.savedLists[list]?.contains(video.id) == true
+                            Button {
+                                saving = true
+                                Task { _ = await library.setSaved(video, list: list, saved: !saved); saving = false }
+                            } label: { Label(saved ? "In " + list : "Add to " + list, systemImage: list == "Favorites" ? "heart" : "bookmark") }
+                                .buttonStyle(.bordered).disabled(saving)
+                        }
+                    }
+                    CatalogueLookupView(title: video.fileName ?? video.title)
                     Text("File details and artwork are cached on this iPhone. Tap Cinespice to refresh the current channel.").font(.caption).foregroundStyle(theme.muted)
                 }.padding(22)
             }.background(theme.background).navigationTitle("File details").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .navigationBarLeading) { Button("Back") { dismiss() } } }
         }.navigationViewStyle(.stack).preferredColorScheme(theme.scheme)
     }
 }
@@ -293,4 +311,99 @@ struct KeyboardDismissObserver: UIViewRepresentable {
     }
     func updateUIView(_ view: Host, context: Context) { }
     static func dismantleUIView(_ view: Host, coordinator: Coordinator) { coordinator.attach(nil); view.attach = nil }
+}
+
+struct DialingCountry: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let dial: String
+    static let all: [DialingCountry] = {
+        guard let url = Bundle.main.url(forResource: "countries", withExtension: "json", subdirectory: "BuildConfig"),
+              let data = try? Data(contentsOf: url), let list = try? JSONDecoder().decode([DialingCountry].self, from: data) else {
+            return [DialingCountry(id: "US", name: "United States", dial: "+1")]
+        }
+        return list
+    }()
+}
+
+struct PhoneNumberEntry: View {
+    @Binding var country: String
+    @Binding var number: String
+    @State private var choosing = false
+    @State private var search = ""
+    var selected: DialingCountry { DialingCountry.all.first { $0.id == country } ?? DialingCountry.all[0] }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Button { choosing = true } label: {
+                HStack { Text(selected.name); Spacer(); Text(selected.dial); Image(systemName: "chevron.down") }
+                    .padding(16).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }.accessibilityLabel("Country: \(selected.name), \(selected.dial)")
+            HStack {
+                Text(selected.dial).font(.headline).padding(.leading, 12)
+                TextField("Phone number", text: $number).keyboardType(.phonePad).textContentType(.telephoneNumber)
+                    .padding(.vertical, 12)
+            }.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        }.sheet(isPresented: $choosing) {
+            NavigationView {
+                List(DialingCountry.all.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.dial.contains(search) }) { item in
+                    Button { country = item.id; choosing = false } label: {
+                        HStack { Text(item.name); Spacer(); Text(item.dial).foregroundStyle(.secondary) }
+                    }
+                }.searchable(text: $search, prompt: "Country or calling code").navigationTitle("Choose country")
+                    .safeAreaInset(edge: .bottom) { Link("Country data: mledoze/countries · ODbL", destination: URL(string: "https://github.com/mledoze/countries")!).font(.caption).padding(8) }
+                    .toolbar { ToolbarItem(placement: .navigationBarLeading) { Button("Back") { choosing = false } } }
+            }.navigationViewStyle(.stack)
+        }
+    }
+}
+
+/// Explicit lookup avoids sending private filenames to a catalogue automatically.
+struct CatalogueLookupView: View {
+    let title: String
+    @State private var query = ""
+    @State private var results: [Match] = []
+    @State private var loading = false
+    @State private var message = ""
+    struct Match: Decodable, Identifiable {
+        let id: String
+        let label: String
+        let description: String?
+    }
+    private struct Response: Decodable { let search: [Match] }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Discover more").font(.headline)
+            Text("Look up a title on Wikidata for a description. Suggested matches may refer to a different title.").font(.caption).foregroundStyle(.secondary)
+            TextField("Movie or show title", text: $query).textFieldStyle(.roundedBorder).submitLabel(.search).onSubmit { lookup() }
+            Button(action: lookup) { Label(loading ? "Looking up…" : "Find title info", systemImage: "magnifyingglass") }.disabled(loading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if !message.isEmpty { Text(message).font(.caption).foregroundStyle(.secondary) }
+            ForEach(results) { result in
+                if result.id.range(of: "^Q[0-9]+$", options: .regularExpression) != nil, let url = URL(string: "https://www.wikidata.org/wiki/" + result.id) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Link(result.label, destination: url).font(.headline)
+                        if let description = result.description { Text(description).font(.subheadline) }
+                    }
+                }
+            }
+            Link("Data: Wikidata · CC0", destination: URL(string: "https://www.wikidata.org/wiki/Wikidata:Licensing")!).font(.caption)
+        }.onAppear { if query.isEmpty { query = (title as NSString).deletingPathExtension.replacingOccurrences(of: ".", with: " ").replacingOccurrences(of: "_", with: " ") } }
+    }
+    private func lookup() {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !loading, !text.isEmpty else { return }
+        loading = true; message = ""; results = []
+        Task { @MainActor in
+            defer { loading = false }
+            do {
+                var components = URLComponents(string: "https://www.wikidata.org/w/api.php")!
+                components.queryItems = ["action": "wbsearchentities", "format": "json", "language": "en", "type": "item", "limit": "5", "search": String(text.prefix(200))].map { URLQueryItem(name: $0.key, value: $0.value) }
+                var request = URLRequest(url: components.url!); request.timeoutInterval = 15
+                request.setValue("Cinespice/1.2 (title lookup; https://github.com/masalaoats007/Cinespice)", forHTTPHeaderField: "User-Agent")
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 1_000_000 else { throw URLError(.badServerResponse) }
+                results = try JSONDecoder().decode(Response.self, from: data).search
+                if results.isEmpty { message = "No match found. Try a shorter title; file details remain available above." }
+            } catch { message = "Title info is unavailable. Please try again later." }
+        }
+    }
 }

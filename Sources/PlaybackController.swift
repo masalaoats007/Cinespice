@@ -92,14 +92,14 @@ final class PlaybackController: ObservableObject {
         if let seek = pendingSeek {
             if abs(current - seek.position) < 3 { pendingSeek = nil }
             else if Date().timeIntervalSince(seek.date) > 60 {
-                player.pause(); resumeWarning = "Seeking timed out. Download first or try another position."
+                player.pause(); resumeWarning = "Seeking timed out. Download the file or try another position."
             }
         }
         if !scrubbing, pendingSeek == nil { position = current }
         audioTracks = tracks(player.audioTrackNames, player.audioTrackIndexes)
         subtitleTracks = tracks(player.videoSubTitlesNames, player.videoSubTitlesIndexes)
         selectedAudio = player.currentAudioTrackIndex; selectedSubtitle = player.currentVideoSubTitleIndex
-        if state == .error { error = "VLC could not play this video. Try Download first, then reopen it."; isOpening = false }
+        if state == .error { error = "VLC could not play this video. Try downloading the file, then reopen it."; isOpening = false }
         if state == .ended { isOpening = false }
         if state == .playing || (current > 0 && player.isPlaying) { hasPlayed = true; isOpening = false }
         // The renderer is created asynchronously. Apply once it is playing, and
@@ -117,7 +117,7 @@ final class PlaybackController: ObservableObject {
                 resumeAttempt = Date()
             } else if Date().timeIntervalSince(resumeAttempt ?? waitingSince ?? Date()) > 60 {
                 player.pause()
-                resumeWarning = "The saved position could not be reached. Download first or start from the beginning."
+                resumeWarning = "The saved position could not be reached. Download the file or start from the beginning."
             }
         }
         ticks += 1

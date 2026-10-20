@@ -30,6 +30,8 @@ targets:
     sources:
       - path: Sources
       - path: Resources/Assets.xcassets
+      - path: Resources/BuildConfig
+        type: folder
     dependencies:
       - sdk: libsqlite3.tbd
       - package: TDLibFramework

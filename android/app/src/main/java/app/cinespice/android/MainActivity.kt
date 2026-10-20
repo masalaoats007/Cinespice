@@ -16,6 +16,8 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     internal val model: LibraryModel by viewModels()
     internal var opening by mutableStateOf<Video?>(null)
+    internal var details by mutableStateOf<Video?>(null)
+    internal var downloadSuggestion by mutableStateOf<Video?>(null)
     private var openJob: Job? = null
     private var exportVideo: Video? = null
     private val export = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -47,7 +49,8 @@ class MainActivity : ComponentActivity() {
             try {
                 val current = withContext(Dispatchers.IO) { model.telegram.prepare(video) }
                 model.telegram.check(generation)
-                check(!model.telegram.downloads.contains(current.fileId) || model.telegram.completedPath(current).isNotEmpty()) { "Download first is in progress. Wait for it to finish." }
+                check(!model.telegram.downloads.contains(current.fileId) || model.telegram.completedPath(current).isNotEmpty()) { "Download is in progress. Wait for it to finish." }
+                if (current.size <= 0 && model.telegram.completedPath(current).isEmpty()) { downloadSuggestion = current; return@launch }
                 startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("video", current.data.toString()).putExtra("resume", resume).putExtra("generation", generation))
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { model.message(e.message ?: "Could not open video") }

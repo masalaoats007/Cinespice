@@ -2,8 +2,14 @@ name: Build Cinespice IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      edition:
+        description: Edition to build
+        type: choice
+        options: [both, configured, standard]
+        default: both
   push:
-    branches: [main, master]
+    branches: [IOS, main, master, 'coderabbit/configure-api-credential-builds/**']
     paths:
       - ".github/workflows/ios-ipa.yml"
       - "Package.swift"
@@ -16,7 +22,7 @@ on:
       - "Tests/**"
       - "scripts/**"
   pull_request:
-    branches: [main, master]
+    branches: [IOS, main, master]
     paths:
       - ".github/workflows/ios-ipa.yml"
       - "Package.swift"
@@ -34,10 +40,21 @@ permissions:
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: ${{ fromJSON((github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/coderabbit/')) || inputs.edition == 'standard') && '["standard"]' || inputs.edition == 'configured' && '["configured"]' || '["standard","configured"]') }}
     runs-on: macos-15-intel
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+      - name: Test build configuration isolation
+        run: python3 scripts/test_build_configuration.py
+      - name: Generate Telegram build configuration
+        env:
+          TELEGRAM_API_ID: ${{ github.event_name != 'pull_request' && matrix.edition == 'configured' && secrets.TELEGRAM_API_ID || '' }}
+          TELEGRAM_API_HASH: ${{ github.event_name != 'pull_request' && matrix.edition == 'configured' && secrets.TELEGRAM_API_HASH || '' }}
+        run: python3 scripts/configure-telegram.py --platform ios --mode "${{ matrix.edition }}"
       - name: Test streaming protocol and scheduling
         run: swift test
       - name: Install build tools
@@ -84,14 +101,14 @@ jobs:
           (cd build/ipa && zip -r ../Cinespice-unsigned.ipa Payload)
       - uses: actions/upload-artifact@v4
         with:
-          name: Cinespice-unsigned-ipa
+          name: Cinespice-${{ matrix.edition }}-unsigned-ipa
           path: build/Cinespice-unsigned.ipa
           if-no-files-found: error
       - name: Upload build diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: Cinespice-build-diagnostics
+          name: Cinespice-${{ matrix.edition }}-build-diagnostics
           path: |
             build/xcodebuild.log
             build/Tevee.xcresult

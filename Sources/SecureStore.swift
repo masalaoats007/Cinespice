@@ -52,3 +52,18 @@ enum SecureStore {
         NSError(domain: NSOSStatusErrorDomain, code: Int(code), userInfo: [NSLocalizedDescriptionKey: "Secure storage is unavailable (\(code)). Unlock your iPhone and retry."])
     }
 }
+
+/// A configured edition never falls back to asking customers for developer keys.
+enum TelegramBuild {
+    struct Configuration: Decodable {
+        let mode: String
+        let apiID: String?
+        let apiHash: String?
+    }
+    static var configuration: Configuration? {
+        guard let url = Bundle.main.url(forResource: "telegram-build", withExtension: "json", subdirectory: "BuildConfig"),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(Configuration.self, from: data)
+    }
+    static var isStandard: Bool { configuration?.mode == "standard" }
+}

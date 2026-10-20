@@ -81,7 +81,7 @@ class ChannelUiTest {
         compose.onNodeWithText("Done").assertIsDisplayed().performClick()
         compose.onNodeWithContentDescription("Home tab").assertIsDisplayed()
     }
-    @Test fun emptySearchDraftRecreationHistoryAndPalette() {
+    @Test fun emptySearchDraftRecreationNavigationAndPalette() {
         compose.onNodeWithContentDescription("Search tab").performClick()
         compose.onNodeWithText("Search your selected channels").assertIsDisplayed()
         compose.onNodeWithText("Search videos").performClick().performTextInput("Quiet")
@@ -106,9 +106,9 @@ class ChannelUiTest {
             compose.onNodeWithContentDescription("Hero ${index+1} of 7: ${roles[index]}").performTouchInput { swipeLeft() }
             compose.onNodeWithContentDescription("Hero ${index+2} of 7: ${roles[index+1]}").assertIsDisplayed()
         }
-        compose.onNodeWithTag("library-grid").performScrollToIndex(8)
-        compose.onNodeWithContentDescription("History tab").performClick()
-        compose.onNodeWithText("Recently watched").assertIsDisplayed()
+        compose.onNodeWithContentDescription("History tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Favorites and Watchlist").performClick()
+        compose.onNodeWithText("Saved for later").assertIsDisplayed()
         compose.onNodeWithContentDescription("Home tab").performClick()
         compose.onNodeWithContentDescription("Hero 1 of 7: JUST ADDED").assertIsDisplayed()
     }

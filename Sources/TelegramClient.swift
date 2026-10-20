@@ -106,6 +106,13 @@ final class TelegramClient: ObservableObject {
     func restoreSession() {
         guard !restored else { return }; restored = true
         do {
+            if !TelegramBuild.isStandard {
+                guard let build = TelegramBuild.configuration, let id = build.apiID, let hash = build.apiHash else {
+                    stage = .error("This build is missing its Telegram configuration. Please install a configured build."); return
+                }
+                connect(apiID: id, apiHash: hash)
+                return
+            }
             guard let data = try SecureStore.read("telegram_api_credentials") else { return }
             let credentials = try JSONDecoder().decode(TelegramCredentials.self, from: data)
             connect(apiID: credentials.apiID, apiHash: credentials.apiHash)
@@ -143,7 +150,7 @@ final class TelegramClient: ObservableObject {
             }
         }
     }
-    func resetAuth() { authenticationRequest = UUID(); stage = .credentials; status = ""; isAuthenticating = false }
+    func resetAuth() { authenticationRequest = UUID(); stage = .credentials; status = ""; isAuthenticating = false; restored = false; restoreSession() }
 
     func refreshChats() { loadMoreChats() }
     func loadMoreChats() {
@@ -264,7 +271,7 @@ final class TelegramClient: ObservableObject {
         try Task.checkCancellation()
         guard accountSession == session, stage == .ready else { throw CancellationError() }
         if fullDownloads.contains(current.fileID), !current.isDownloaded {
-            throw NSError(domain: "Tevee.Download", code: 1, userInfo: [NSLocalizedDescriptionKey: "Download first is still in progress. Wait for the downloaded badge, then play again."])
+            throw NSError(domain: "Tevee.Download", code: 1, userInfo: [NSLocalizedDescriptionKey: "Download is still in progress. Wait for the downloaded badge, then play again."])
         }
         return current
     }
@@ -557,6 +564,7 @@ final class TelegramClient: ObservableObject {
             catch { stage = .error(error.localizedDescription); return }
         }
         stage = .credentials
+        restored = false; restoreSession()
     }
 
     private func configure() {

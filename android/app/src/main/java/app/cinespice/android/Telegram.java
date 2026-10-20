@@ -42,17 +42,32 @@ final class Telegram {
     private final boolean[] exhausted = {false, false};
     private int nextList;
     private final Set<Long> resolvedChats = ConcurrentHashMap.newKeySet();
+    volatile boolean standardBuild = false;
     Telegram(Context context) {
         this.context = context; secure = new SecureStore(context);
-        io.execute(() -> {
-            try {
-                String saved = secure.get("credentials");
-                if (saved != null) {
-                    JSONObject data = new JSONObject(saved);
-                    connect(data.getString("id"), data.getString("hash"));
-                }
-            } catch (Exception e) { fail("Could not restore credentials: " + e.getMessage()); }
-        });
+        io.execute(() -> { try { restoreCredentials(); } catch (Exception e) { fail("This build could not load its Telegram configuration. Please reinstall a configured build."); } });
+    }
+    void restoreCredentials() throws Exception {
+        JSONObject build;
+        try (var input = context.getAssets().open("telegram-build.json")) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[1024]; int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (bytes.size() + count > 4096) throw new java.io.IOException("Invalid build configuration");
+                bytes.write(buffer, 0, count);
+            }
+            build = new JSONObject(bytes.toString("UTF-8"));
+        }
+        standardBuild = build.optString("mode").equals("standard");
+        if (!standardBuild) {
+            connect(build.getString("apiID"), build.getString("apiHash"));
+        } else {
+            String saved = secure.get("credentials");
+            if (saved != null) {
+                JSONObject data = new JSONObject(saved);
+                connect(data.getString("id"), data.getString("hash"));
+            } else changed();
+        }
     }
     void listen(Listener listener) { listeners.add(listener); }
     void unlisten(Listener listener) { listeners.remove(listener); }
