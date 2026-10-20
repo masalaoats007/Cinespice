@@ -331,7 +331,7 @@ struct PhoneNumberEntry: View {
     @Binding var number: String
     @State private var choosing = false
     @State private var search = ""
-    var selected: DialingCountry { DialingCountry.all.first { $0.id == country } ?? DialingCountry.all[0] }
+    var selected: DialingCountry { DialingCountry.all.first { $0.id == country } ?? DialingCountry(id: "US", name: "United States", dial: "+1") }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Button { choosing = true } label: {

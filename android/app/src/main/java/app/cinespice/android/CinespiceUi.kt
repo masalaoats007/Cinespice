@@ -426,7 +426,7 @@ private data class DialingCountry(val id: String, val name: String, val dial: St
         val data = org.json.JSONArray(activity.assets.open("countries.json").bufferedReader().use { it.readText() })
         (0 until data.length()).map { val item = data.getJSONObject(it); DialingCountry(item.getString("id"), item.getString("name"), item.getString("dial")) }
     }.getOrDefault(listOf(DialingCountry("US", "United States", "+1"))) }
-    val country = countries.firstOrNull { it.id == countryId } ?: countries.first()
+    val country = countries.firstOrNull { it.id == countryId } ?: DialingCountry("US", "United States", "+1")
     val keyboard = LocalSoftwareKeyboardController.current
     fun submit() {
         if (model.busy || value.isBlank()) return
