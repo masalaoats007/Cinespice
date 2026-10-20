@@ -107,7 +107,11 @@ class ChannelUiTest {
             compose.onNodeWithContentDescription("Hero ${index+2} of 7: ${roles[index+1]}").assertIsDisplayed()
         }
         compose.onNodeWithContentDescription("History tab").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Favorites and Watchlist").performClick()
+        compose.onNodeWithContentDescription("Favorites and Watchlist").assertDoesNotExist()
+        listOf("Home", "Search", "Favorites", "Downloads").forEach {
+            compose.onNodeWithContentDescription("$it tab").assertIsDisplayed()
+        }
+        compose.onNodeWithContentDescription("Favorites tab").performClick()
         compose.onNodeWithText("Saved for later").assertIsDisplayed()
         compose.onNodeWithContentDescription("Home tab").performClick()
         compose.onNodeWithContentDescription("Hero 1 of 7: JUST ADDED").assertIsDisplayed()
@@ -142,6 +146,8 @@ class ChannelUiTest {
         }
         compose.onNodeWithContentDescription("Home tab").assertDoesNotExist()
         compose.onNodeWithContentDescription("Search tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Favorites tab").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Downloads tab").assertDoesNotExist()
         compose.onNodeWithTag("library-grid").performScrollToNode(hasText("3", substring = false))
         compose.onNodeWithText("3", substring = false).performClick()
         scenario.onActivity { assertEquals(2, it.model.collectionPageNumber) }

@@ -22,7 +22,7 @@ format, screen size or failure scenario has been tested on an iPhone.
 
 ### UI redesign
 
-- Three compact tabs: Home, Search, Downloads. Favorites/Watchlist and Channels are in the header.
+- Four floating bottom tabs: Home, Search, Favorites, Downloads. Channels and Profile remain in the header.
 - Persistent Favorites and Watchlist, four palettes (two dark/two light), title and
   filename-year sorting. Latest releases is the default; unknown years stay last.
 - Empty search until typing; independent destination scroll positions; five recent

@@ -45,7 +45,7 @@ portrait, manually locked landscape, camera safe areas, an iPad and larger text.
 | Sign-in | Connect; Continue for phone/code/password/email; Back to sign in. Immediate busy state, one request, useful error/retry |
 | Library header | Back returns to library; Cinespice refreshes with feedback; the single Channels icon opens picker; Profile opens settings |
 | Home | Seven hero slots swipe; unavailable trends say so; hero Play/Resume starts one opening attempt; More info opens details |
-| Tabs | Home/Favorites/Search/Downloads/History activate from the entire visible cell; selected tab updates |
+| Tabs | Floating bottom bar shows Home/Search/Favorites/Downloads in that order; each entire cell activates its page; selected tab updates; no Favorites header button; hidden inside a channel |
 | Search | Clear button works from its whole target; typing does not shift the row height; Retry/More results show progress; tapping a result opens the intended file |
 | Posters | Play target matches the clipped image; adjacent posters and their menus do not steal taps; scrolling does not play a file |
 | Video menu | Play/resume, start over, download/cancel, Save to Files, mark watched and remove history act on that video; async work is visible |

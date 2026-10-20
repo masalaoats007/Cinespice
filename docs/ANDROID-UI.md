@@ -13,10 +13,11 @@ surfaces for the compact top bar, navigation bar, menus and sheets, with subtle
 Use 16–24dp content margins, 16–18dp poster/hero corner radii, and 48dp minimum
 touch targets. Honor status/navigation bars, display cutouts and font scaling.
 
-- Compact top app bar: CINESPICE (refresh), Favorites/Watchlist, Channels and Profile.
+- Compact top app bar: CINESPICE (refresh), Channels and Profile.
   Channel screens show Back, channel name, channel sorting and scoped search.
-- Bottom navigation: Home, Search, Downloads. Use a navigation rail on larger
-  windows; hide both forms of global navigation inside a channel.
+- Floating bottom navigation: Home, Search, Favorites, Downloads on all window sizes.
+  Use a rounded opaque bar with 16dp side margins and safe system insets; hide it
+  inside a channel and while the keyboard is open.
 - Adaptive poster grid: about 140dp minimum card width, 16dp gaps, centered content
   capped around 1200dp. Continue Watching uses a horizontal landscape-card rail.
 - Seven-position `HorizontalPager`, dots and accessible page descriptions. No

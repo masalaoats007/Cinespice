@@ -152,7 +152,6 @@ struct TelegramLibraryView: View {
                         .minimumScaleFactor(0.6).lineLimit(1).foregroundStyle(theme.accent)
                 }.accessibilityLabel("Cinespice, refresh current library")
                 Spacer(minLength: 0)
-                Button { tab = 1 } label: { Image(systemName: "heart").frame(width: 44, height: 44) }.accessibilityLabel("Favorites and Watchlist")
                 Button { showCollections = true } label: { Image(systemName: "rectangle.stack").frame(width: 44, height: 44) }.accessibilityLabel("Channels and groups")
                 Button { showSettings = true } label: { Image(systemName: "person.crop.circle").frame(width: 44, height: 44) }.accessibilityLabel("Profile and settings")
             }
@@ -491,8 +490,14 @@ struct TelegramLibraryView: View {
         HStack {
             tabButton(0, "Home", "house")
             tabButton(2, "Search", "magnifyingglass")
+            tabButton(1, "Favorites", "heart")
             tabButton(3, "Downloads", "arrow.down.circle")
-        }.padding(.horizontal, 8).padding(.vertical, 3).background(.ultraThinMaterial)
+        }.padding(.horizontal, 8).padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+            .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(theme.muted.opacity(0.15), lineWidth: 1))
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            .frame(maxWidth: 560)
+            .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
     private func tabButton(_ index: Int, _ title: String, _ symbol: String) -> some View {
         Button { tab = index; collection = nil } label: {

@@ -45,7 +45,7 @@ internal val palettes = listOf(
     CinePalette("Sage", Color(0xFFF1F6F2), Color(0xFFDFEAE2), Color(0xFF226347), false)
 )
 internal data class Destination(val id: String, val title: String, val icon: ImageVector)
-internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("search", "Search", Icons.Default.Search), Destination("downloads", "Downloads", CineIcons.Download))
+internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("search", "Search", Icons.Default.Search), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("downloads", "Downloads", CineIcons.Download))
 
 @Composable internal fun Cinespice(activity: MainActivity, model: LibraryModel) {
     val palette = palettes.firstOrNull { it.name == model.palette } ?: palettes.first()
@@ -75,8 +75,7 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
             if (ime) { keyboard?.hide(); focus.clearFocus() }
             else if (model.channelsVisible) model.closeChannels() else navigate("home")
         }
-        BoxWithConstraints(Modifier.fillMaxSize().background(palette.bg).outsideKeyboard()) {
-            val rail = maxWidth >= 840.dp && model.stage == "ready" && model.page != "collection"
+        Box(Modifier.fillMaxSize().background(palette.bg).outsideKeyboard()) {
             Scaffold(containerColor = palette.bg, contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
                     Column(Modifier.statusBarsPadding().background(palette.surface)) {
@@ -90,7 +89,6 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                             TextButton(onClick = { if (model.stage == "ready") model.refresh() }, enabled = !model.busy) { Text("CINESPICE", letterSpacing = 2.sp, fontWeight = FontWeight.Bold, fontSize = 17.sp) }
                             Spacer(Modifier.weight(1f))
                             if (model.stage == "ready") {
-                                IconButton(onClick = { navigate("favorites") }) { Icon(Icons.Default.FavoriteBorder, "Favorites and Watchlist") }
                                 IconButton(onClick = { keyboard?.hide(); model.showChannels() }) { Icon(CineIcons.VideoLibrary, "Channels") }
                                 IconButton(onClick = { navigate("profile") }) { Icon(CineIcons.PersonOutline, "Profile") }
                             }
@@ -101,15 +99,18 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = .3f))
                     }
                 }, bottomBar = {
-                    if (model.stage == "ready" && model.page != "collection" && !rail && !ime) NavigationBar(modifier = Modifier.heightIn(min = if (LocalDensity.current.fontScale > 1.4f) 112.dp else 80.dp), containerColor = palette.surface, tonalElevation = 0.dp) {
-                        destinations.forEach { dest -> NavigationBarItem(selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, null) }, label = { Text(dest.title, maxLines = if (LocalDensity.current.fontScale > 1.4f) 2 else 1, fontSize = 9.sp, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }, modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }) }
+                    if (model.stage == "ready" && model.page != "collection" && !ime) {
+                        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)).padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                            NavigationBar(modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).border(1.dp, scheme.outline.copy(alpha = .3f), RoundedCornerShape(28.dp)).heightIn(min = if (density.fontScale > 1.4f) 112.dp else 80.dp), containerColor = palette.surface, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
+                                destinations.forEach { dest -> NavigationBarItem(selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, null) }, label = { Text(dest.title, maxLines = if (density.fontScale > 1.4f) 2 else 1, fontSize = 9.sp, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }, modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }) }
+                            }
+                        }
                     }
                 }
             ) { padding ->
                 // Scaffold already applies the safe-drawing insets. A second IME
                 // inset here double-counted the keyboard when edge-to-edge was on.
                 Row(Modifier.fillMaxSize().padding(padding)) {
-                    if (rail) NavigationRail(containerColor = palette.surface) { destinations.forEach { dest -> NavigationRailItem(modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }, selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, dest.title) }, label = { Text(dest.title) }) } }
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                         if (model.stage == "ready") LibraryPage(activity, model, Modifier.widthIn(max = 1200.dp).fillMaxSize()) else Authentication(activity, model)
                     }

@@ -6,10 +6,11 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 ## Navigation and space
 
-- Header: CINESPICE refresh button, Favorites/Watchlist, Channels and Profile.
+- Header: CINESPICE refresh button, Channels and Profile.
   A channel page has Back, the channel name, sorting and channel-only search.
-- Footer: **Home / Search / Downloads**; hidden inside a channel. Three equal cells;
-  48-point minimum targets, 3-point vertical padding. Header controls remain at
+- Floating bottom navigation: **Home / Search / Favorites / Downloads**; hidden inside a channel.
+  Four equal cells in a rounded material bar, 16-point side margins, 8-point outer
+  vertical spacing, and 48-point minimum targets. Header controls remain at
   least 44 points. Safe-area space is retained for the camera and home indicator.
 - Content uses 20–24-point margins, adaptive grids (140-point minimum cards),
   a 1,200-point maximum content width, and 16–20-point section gaps.
